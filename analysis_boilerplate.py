@@ -8,7 +8,7 @@ from openpyxl import Workbook
 from datetime import datetime
 
 # set up your working directory
-os.chdir('/Users/reach/Desktop/Dashboard bolierplate/')
+os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
 
 # Read the functions
 exec(open('src/functions.py').read())

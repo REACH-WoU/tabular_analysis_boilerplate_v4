@@ -291,9 +291,11 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
             if not pd.isna(daf_final_freq.iloc[i]['calculation']):
               # break down the calculations
               if ' ' in daf_final_freq.iloc[i]['calculation']:
-                calc = daf_final_freq.iloc[i]['calculation'].split(' ')
+                calc = daf_final_freq.iloc[i]['calculation'].split(',')
+                calc = [x.strip(' ') for x in calc]
               else:
                 calc = [daf_final_freq.iloc[i]['calculation']]
+                calc = [x.strip(' ') for x in calc]
             else:
               calc = 'None'
 
