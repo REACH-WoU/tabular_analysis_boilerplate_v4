@@ -234,11 +234,12 @@ def construct_result_table(tables_list,file_name, make_pivot_with_strata = False
 
         cell_id = f"A{link_idx}"
         link_idx += len(pivot_table) + 3
-
+        data_sheet.append([label])
         data_sheet.append(list(pivot_table.columns))
         for _, row in pivot_table.iterrows():
+            if values_variable == "perc":
+              row = [f'{value:.2%}' if isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value) else value for value in row]
             data_sheet.append(list(row))
-        data_sheet.append([])
         data_sheet.append([])
 
         text_on_link = label + ' ' + values_variable
