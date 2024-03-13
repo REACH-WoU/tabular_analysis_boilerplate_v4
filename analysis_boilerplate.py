@@ -1,17 +1,12 @@
 import pandas as pd
-import numpy as np
-import re
-from itertools import combinations
 import os
-from openpyxl.styles import PatternFill, Font
-from openpyxl import Workbook
 from datetime import datetime
 
 # set up your working directory
 os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
 
 # Read the functions
-exec(open('src/functions.py').read())
+from src.functions import *
 
 # this is where you input stuff #
 
@@ -36,10 +31,10 @@ tool_choices = load_tool_choices(filename_tool = excel_path_tool,label_colname=l
 tool_survey = load_tool_survey(filename_tool = excel_path_tool,label_colname=label_colname)
 
 
-# data transformation section
+# data transformation section below
 
+# add the Overall column to your data
 for sheet_name in sheets:
-    # get all the names in your dataframe list
     data[sheet_name]['Overall'] ='Overall'
 
 

@@ -64,12 +64,12 @@ The `operation` column supports the following operations "<", ">", "<=", ">=", "
 ## Inputs
 
 Prior to running the script please fill in:
- - Your working directory in row 11
- - The name of your research cycle in row 19
- - The round of your research cycle in row 20
- - The relevant relative paths and names of your Data, Kobo tool and DAF files in rows 23-25
+ - Your working directory in row 6
+ - The name of your research cycle in row 14
+ - The round of your research cycle in row 15
+ - The relevant relative paths and names of your Data, Kobo tool and DAF files in rows 18-20
  - The name of your label column **Must be identical in Kobo tool and survey sheets!!**
- - If you want to add any new variables not present in the data, please do so in the block that starts on line 39, please note that the new variables will be assigned a frequency type of `select_one` if they are not present in the Kobo tool.
+ - If you want to add any new variables not present in the data, please do so in the block that starts on line 34, please note that the new variables will be assigned a frequency type of `select_one` if they are not present in the Kobo tool.
 
 ## Checks
 The script goes through the following checks:
