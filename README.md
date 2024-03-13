@@ -18,10 +18,11 @@ The general way of filling out the DAF form is similar between V4 and V3, main d
 The DAF form example is provided in the `resources/DAF_example.xlsx`. The basic structure of the file is the following:
 |ID|	variable|	variable_label|	calculation|	func|	admin|	disaggregations	|disaggregations_label|	join|
 |--|----------|---------------|------------|------|------|------------------|---------------------|-----|
-|**Row index, unique to each row and should start with 1**| The name of the variable, should match exactly what you have in your Kobo tool and your dataframe, any differences will produce errors in the script|**The label of your variable, what did you ask the respondent?**| supports two functions `include_na` and `add_total`, see more below. | whether the variable should be disaggregated as a frequency  or as a weighted mean | The admin unit to be used for the disaggregation| What is the disaggregation variable you want to use for your `variable`?| **A nice label of your disaggregation column**| The `ID` of the parent row of the dependent table|
+|**Row index**| The name of the variable|**The label of your variable, what did you ask the respondent?**| Supports two functions `include_na` and `add_total`. | whether the variable should be disaggregated as a frequency  or as a weighted mean | The admin unit to be used for the disaggregation| What is the disaggregation variable you want to use for your `variable`?| **A nice label of your disaggregation column**| The `ID` of the parent row of the dependent table|
 
 Some details for relevant columns:
-- `ID` - new column, please fill it in. **Each row has to be unique**
+- `ID` - new column, please fill it in. **Each row has to be unique, and should start with 1**
+- `variable` - This name should match exactly what you have in your Kobo tool and your dataframe, any differences will produce errors in the script
 - `calculation` - If you want to run a frequency analysis specify `freq`, `select_one`, `select_multiple` in the cell. If you want to get a weighted mean for the variable, specify `numeric` in the cell
 - `func` - The current script supports two specifications of this columns, the same as V3. `include_na` Replaces NA values of the `variable` with `No data available (NA)`. `add_total` does the same but adds the general frequency table of the dependent variabme ommiting all of the entries in `admin` and `disaggregations` columns. You can leave it blank if you don't care about any of this.
 - `disaggregations` the current version of the scripts supports multiple disaggregation columns, to use this, enter multiple disaggregation names in the cell and separate them with a comma `,`
