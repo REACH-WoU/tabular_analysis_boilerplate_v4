@@ -20,8 +20,8 @@ research_cycle = 'test_cycle'
 id_round = '1'
 date = datetime.today().strftime('%Y_%m_%d')
 
-excel_path_data = 'data/test_frame.xlsx'
-excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx'
+excel_path_data = 'data/test_frame_2.xlsx'
+excel_path_daf = 'resources/DAF_example.xlsx'
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx'
 
 label_colname = 'label::English'
@@ -37,7 +37,7 @@ tool_survey = load_tool_survey(filename_tool = excel_path_tool,label_colname=lab
 
 
 # check DAF for potential issues
-
+print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
 daf.rename({'admin':'admin'},inplace=True)
 filter_daf = pd.read_excel(excel_path_daf, sheet_name="filter")
@@ -60,6 +60,8 @@ names_data
 daf_merged = daf.merge(names_data,on='variable', how = 'left')
 
 daf_merged = check_daf_consistency(daf_merged, data, sheets, resolve=False)
+
+print('Checking your filter page and building the filter dictionary')
 
 if filter_daf.shape[0]>0:
   check_daf_filter(daf =daf_merged, filter_daf=filter_daf, tool_survey=tool_survey, tool_choices=tool_choices)
@@ -94,6 +96,7 @@ else:
 
 # Get the disagg tables
 
+print('Building basic tables')
 daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
 daf_final['q.type'].fillna('select_one',inplace= True)
 test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column ='weight')
@@ -101,10 +104,14 @@ test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_su
 #Get the dashboard inputs
 
 concatenated_df = pd.concat([tpl[0] for tpl in test], ignore_index=True)
-concatenated_df = concatenated_df[concatenated_df['admin']!='Total']
+concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total') & (concatenated_df['disaggregations_category_1'] != 'Total')]
+
+concatenated_df.loc[:,['disaggregations_category_1','disaggregations_1']].fillna('Overall', inplace=True)
+concatenated_df.loc[:,['disaggregations_category_1', 'disaggregations_1']] = concatenated_df.loc[:,['disaggregations_category_1', 'disaggregations_1']].fillna('Overall')
+
 
 # Join tables if needed
-
+print('Joining tables if such was specified')
 test_new = test.copy()
 # check if any joining is needed
 if pd.notna(daf_final['join']).any():
@@ -143,14 +150,17 @@ if pd.notna(daf_final['join']).any():
       dataframes =[parent_tupple_data, child_tupple_data]
 
       for var, dataframe in  zip(varnames, dataframes):
-        rename_dict = {'mean': 'mean_'+var, 'count': 'count_'+var, 'perc': 'perc_'+var}
+        rename_dict = {'mean': 'mean_'+var, 'count': 'count_'+var, 'perc': 'perc_'+var,
+                       'min': 'min_'+var, 'max': 'max_'+var}
 
         for old_name, new_name in rename_dict.items():
           if old_name in dataframe.columns:
               dataframe.rename(columns={old_name: new_name},inplace=True)
 
       # get the lists of columns to keep and merge
-      columns_to_merge = [item for item in parent_tupple_data.columns if not any(word in item for word in ['mean', 'count','perc','variable'])]
+      columns_to_merge = [item for item in parent_tupple_data.columns if not any(word in item for word in ['mean', 'count',
+                                                                                                           'max','min',
+                                                                                                           'perc','variable'])]
       columns_to_keep = columns_to_merge+ list(rename_dict.values())
 
       parent_tupple_data= parent_tupple_data.merge(
@@ -166,7 +176,7 @@ if pd.notna(daf_final['join']).any():
       del test_new[child_tupple_index]
 
 # write excel files
-
+print('Writing files')
 filename = research_cycle+'_'+id_round+'_'+date
 
 filename_dash = 'output/'+filename+'_dashboard.xlsx'
@@ -176,3 +186,4 @@ filename_wide_toc = 'output/'+filename+'_wide_TOC.xlsx'
 construct_result_table(test_new, filename_toc,make_pivot_with_strata = False)
 construct_result_table(test, filename_wide_toc,make_pivot_with_strata = True)
 concatenated_df.to_excel(filename_dash)
+print('All done. congratulations')

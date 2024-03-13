@@ -53,7 +53,7 @@ def map_names(column_name,column_values_name,summary_table, tool_survey, tool_ch
       ][['name','label::English']]
     mapping_dict = dict(zip(choices_shortlist['name'], choices_shortlist['label::English']))
     if na_include is True:
-      mapping_dict['No data available (NA)'] = 'No data available (NA)'
+      mapping_dict['No_data_available_NA'] = 'No data available (NA)'
     summary_table[column_values_name] = summary_table[column_values_name].map(mapping_dict)
     return summary_table
 
@@ -61,8 +61,13 @@ def weighted_mean(df, weight_column,numeric_column):
     weighted_sum = (df[numeric_column] * df[weight_column]).sum()
     total_weight = df[weight_column].sum()
     weighted_mean_result = weighted_sum / total_weight
+    weighted_max_result = df[numeric_column].max()
+    weighted_min_result = df[numeric_column].min()
     count = df.shape[0]
-    return pd.Series({'mean': weighted_mean_result, 'count': count})
+    return pd.Series({'mean': weighted_mean_result, 
+                      'max': weighted_max_result,
+                      'min': weighted_min_result,
+                      'count': count})
 
 def get_variable_type(data, variable_name):
     if data[variable_name].dtype == 'object':
@@ -188,6 +193,12 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
 
     return daf
 
+def custom_sort_key(value):
+    if value in 'Total' and isinstance(value, str):
+        return 'zzzzzzzzzzz'  # This super dumb but it works
+    else:
+        return value
+
 def make_pivot(table, index_list, column_list, value):
     pivot_table = table.pivot_table(index=index_list,
                                     columns=column_list,
@@ -218,9 +229,20 @@ def construct_result_table(tables_list,file_name, make_pivot_with_strata = False
               pivot_columns.append("disaggregations_category_2")
 
           if make_pivot_with_strata:
-              pivot_table = make_pivot(table, pivot_columns + ["option"], ["admin_category"], values_variable)
+              if table['admin_category'].isin(['Total']).any():
+                table_dirty  = table[table['admin_category']=='Total']
+                table_clean  = table[table['admin_category']!='Total']
+
+                pivot_table_dirty = make_pivot(table_dirty, pivot_columns + ["option"], ["admin_category"],values_variable)
+                pivot_table_clean = make_pivot(table_clean, pivot_columns + ["option"], ["admin_category"], values_variable)
+
+                pivot_table = pd.merge(pivot_table_clean,pivot_table_dirty[['option','Total']], on =['option'], how = 'left')
+              else:
+                pivot_table = make_pivot(table, pivot_columns + ["option"], ["admin_category"], values_variable)
           else:
               pivot_table = make_pivot(table, pivot_columns + ["admin_category", "count"], ["option"], values_variable)
+              pivot_table = pivot_table.sort_values(by='admin_category', key=lambda x: x.map(custom_sort_key))
+
         else:
         #   if 'disaggregations_category_1' in table.columns:
         #       pivot_columns = ["disaggregations_category_1"]
@@ -311,8 +333,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
             selected_columns = [daf_final_freq['variable'][i]]+disaggregations+[daf_final_freq['admin'][i]]+['weight']
             data_temp = data_temp[selected_columns]
 
-            if 'include_na' in calc:
-              data_temp[daf_final_freq['variable'][i]].fillna('No data available (NA)', inplace=True)
+            if 'include_na' in calc or 'add_total' in calc:
+              data_temp.loc[:, daf_final_freq['variable'][i]] = data_temp[daf_final_freq['variable'][i]].fillna('No_data_available_NA')
               na_includer = True
             else:
               # remove NA rows
@@ -321,12 +343,13 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
             if data_temp.shape[0]>0 :
             # keep a backup for select multiples
-              data_temp_backup = data_temp
+              data_temp_backup = data_temp.copy()
 
               # break down the data form SM
               if daf_final_freq.iloc[i]['q.type'] in ['select_multiple']:
+                  data_temp.loc[:,daf_final_freq.iloc[i]['variable']] = data_temp[daf_final_freq.iloc[i]['variable']].str.strip()
 
-                  data_temp[daf_final_freq.iloc[i]['variable']] = data_temp[daf_final_freq.iloc[i]['variable']].str.split(' ')
+                  data_temp.loc[:,daf_final_freq.iloc[i]['variable']] = data_temp[daf_final_freq.iloc[i]['variable']].str.split(' ').copy()
                   # Separate rows using explode
                   data_temp = data_temp.explode(daf_final_freq.iloc[i]['variable'], ignore_index=True)
 
@@ -370,7 +393,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
               # option replacer
 
 
-              if daf_final_freq['variable'][i] in tool_survey['name']:
+              if tool_survey['name'].isin([daf_final.loc[i,'variable']]).any():
                 summary_stats_full = map_names( column_name= 'variable',
                                               column_values_name='option',
                                                 summary_table = summary_stats_full,
@@ -405,9 +428,10 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
 
               if 'add_total' in calc:
-                summary_stats_total=data_temp.groupby(daf_final_freq['variable'][i])['weight'].agg(['sum','count'])
+                summary_stats_total=data_temp.groupby(daf_final_freq['variable'][i])['weight'].agg(['sum'])  #remove count here bruh
                 summary_stats_total.reset_index(inplace=True)
                 summary_stats_total['perc'] = round(summary_stats_total['sum']/data_temp_backup['weight'].sum(),4) # sometimes weights are wonky. so we're accounting for that
+                summary_stats_total['count'] = data_temp_backup.shape[0] # add count (n of non-na rows)
                 # drom the sum column
                 summary_stats_total.drop(columns=['sum'], inplace=True)
 
@@ -420,8 +444,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
                 summary_stats_total['admin_category']= 'Total'
                 summary_stats_total['variable'] = daf_final_freq['variable'][i]
 
-                summary_stats_total['count'] = sum(summary_stats_total['count'])
-                if daf_final_freq['variable'][i] in tool_survey['name']:
+                if tool_survey['name'].isin([daf_final.loc[i,'variable']]).any():
                   summary_stats_total = map_names(column_name= 'variable',
                                                   column_values_name='option',
                                                   summary_table = summary_stats_total,
@@ -541,7 +564,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
             else:
               label = daf_final_num.iloc[i]['variable']+' on the admin of '+daf_final_num.iloc[i]['admin']
 
-            columns = ['admin','admin_category','variable']+[col for col in summary_stats.columns if col.startswith('disaggregations')] + ['mean','count']
+            columns = ['admin','admin_category','variable']+[col for col in summary_stats.columns if col.startswith('disaggregations')] + ['mean','min','max','count']
             summary_stats = summary_stats[columns]
 
             df_list.append((summary_stats, daf_final_num['ID'][i], label))
