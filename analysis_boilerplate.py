@@ -36,6 +36,13 @@ tool_choices = load_tool_choices(filename_tool = excel_path_tool,label_colname=l
 tool_survey = load_tool_survey(filename_tool = excel_path_tool,label_colname=label_colname)
 
 
+# data transformation section
+
+for sheet_name in sheets:
+    # get all the names in your dataframe list
+    data[sheet_name]['Overall'] ='Overall'
+
+
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
@@ -129,13 +136,13 @@ if pd.notna(daf_final['join']).any():
       parent_index = parent_row.iloc[0]['ID']
 
       # check that the rows are idential
-      parent_check = parent_row[['breakdown','func','calculation','admin','q.type']].reset_index(drop=True)
-      child_check = child_row.to_frame().transpose()[['breakdown','func','calculation','admin','q.type']].reset_index(drop=True)
+      parent_check = parent_row[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
+      child_check = child_row.to_frame().transpose()[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
 
       check_result = child_check.equals(parent_check)
 
       if not check_result:
-        raise ValueError('Joined rows are not identical in terms of admin, calculations, function and breakdowns')
+        raise ValueError('Joined rows are not identical in terms of admin, calculations, function and disaggregations')
       # get the data and dataframe indeces of parents and children
       child_tupple = [(i,tup) for i, tup in enumerate(test_new) if tup[1] == child_index]
       parent_tupple = [(i, tup) for i, tup in enumerate(test_new) if tup[1] == parent_index]
