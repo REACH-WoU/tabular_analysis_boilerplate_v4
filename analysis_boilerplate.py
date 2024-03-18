@@ -35,7 +35,7 @@ tool_survey = load_tool_survey(filename_tool = excel_path_tool,label_colname=lab
 
 # add the Overall column to your data
 for sheet_name in sheets:
-    data[sheet_name]['Overall'] ='Overall'
+  data[sheet_name]['Overall'] ='Overall'
 
 
 # check DAF for potential issues
@@ -48,12 +48,12 @@ filter_daf = pd.read_excel(excel_path_daf, sheet_name="filter")
 names_data= pd.DataFrame()
 
 for sheet_name in sheets:
-    # get all the names in your dataframe list
-    variable_names = data[sheet_name].columns
-    # create a lil dataframe of all variables in all sheets
-    dat = {'variable' : variable_names, 'datasheet' :sheet_name}
-    dat = pd.DataFrame(dat)
-    names_data = pd.concat([names_data, dat], ignore_index=True)
+  # get all the names in your dataframe list
+  variable_names = data[sheet_name].columns
+  # create a lil dataframe of all variables in all sheets
+  dat = {'variable' : variable_names, 'datasheet' :sheet_name}
+  dat = pd.DataFrame(dat)
+  names_data = pd.concat([names_data, dat], ignore_index=True)
 
 
 names_data = names_data.reset_index(drop=True)
@@ -74,27 +74,27 @@ if filter_daf.shape[0]>0:
   filter_dict = {}
   # Iterate over DataFrame rows
   for index, row in filter_daf_full.iterrows():
-      if isinstance(row['value'], str) and row['value'] in data[row['datasheet']].columns:
-          # If the value is another variable, don't use the string bit for it
-          condition_str = f"(data['{row['datasheet']}']['{row['variable']}'] {row['operation']} data['{row['datasheet']}']['{row['value']}'])"
-      elif isinstance(row['value'], str):
-          # If the value is a string add quotes
-          condition_str = f"(data['{row['datasheet']}']['{row['variable']}'].astype(str).str.contains('{row['value']}', regex=True))"
-      else:
-          # Otherwise just keep as is
-          condition_str = f"(data['{row['datasheet']}']['{row['variable']}'] {row['operation']} {row['value']})"
+    if isinstance(row['value'], str) and row['value'] in data[row['datasheet']].columns:
+      # If the value is another variable, don't use the string bit for it
+      condition_str = f"(data['{row['datasheet']}']['{row['variable']}'] {row['operation']} data['{row['datasheet']}']['{row['value']}'])"
+    elif isinstance(row['value'], str):
+      # If the value is a string add quotes
+      condition_str = f"(data['{row['datasheet']}']['{row['variable']}'].astype(str).str.contains('{row['value']}', regex=True))"
+    else:
+      # Otherwise just keep as is
+      condition_str = f"(data['{row['datasheet']}']['{row['variable']}'] {row['operation']} {row['value']})"
 
-      if row['ID'] in filter_dict:
-          filter_dict[row['ID']].append(condition_str)
-      else:
-          filter_dict[row['ID']] = [condition_str]
+    if row['ID'] in filter_dict:
+      filter_dict[row['ID']].append(condition_str)
+    else:
+      filter_dict[row['ID']] = [condition_str]
 
   # Join the similar conditions with '&'
   for key, value in filter_dict.items():
-      filter_dict[key] = ' & '.join(value)
+    filter_dict[key] = ' & '.join(value)
   filter_dict = {key: f'{value}]' for key, value in filter_dict.items()}
 else:
-    filter_dict = {}
+  filter_dict = {}
 
 # Get the disagg tables
 
@@ -103,9 +103,9 @@ daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable
 daf_final['q.type'].fillna('select_one',inplace= True)
 test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column ='weight')
 
-#Get the dashboard inputs
+###Get the dashboard inputs
 
-concatenated_df = pd.concat([tpl[0] for tpl in test], ignore_index=True)
+concatenated_df = pd.concat([tpl[0] for tpl in test], ignore_index = True)
 concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total') & (concatenated_df['disaggregations_category_1'] != 'Total')]
 
 concatenated_df.loc[:,['disaggregations_category_1','disaggregations_1']].fillna('Overall', inplace=True)
@@ -123,59 +123,60 @@ if pd.notna(daf_final['join']).any():
 
   if any(child_rows['ID'].isin(child_rows['join'])):
     raise ValueError('Some of the join tables are related to eachother outside of their relationship with the parent row. Please fix this')
-  else:
+  
 
-    for index, child_row in child_rows.iterrows():
-      child_index = child_row['ID']
-      parent_row = daf_final[daf_final['ID'].isin(child_row[['join']])]
-      parent_index = parent_row.iloc[0]['ID']
+  for index, child_row in child_rows.iterrows():
+    child_index = child_row['ID']
+    parent_row = daf_final[daf_final['ID'].isin(child_row[['join']])]
+    parent_index = parent_row.iloc[0]['ID']
 
-      # check that the rows are idential
-      parent_check = parent_row[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
-      child_check = child_row.to_frame().transpose()[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
+    # check that the rows are idential
+    parent_check = parent_row[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
+    child_check = child_row.to_frame().transpose()[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
 
-      check_result = child_check.equals(parent_check)
+    check_result = child_check.equals(parent_check)
 
-      if not check_result:
-        raise ValueError('Joined rows are not identical in terms of admin, calculations, function and disaggregations')
-      # get the data and dataframe indeces of parents and children
-      child_tupple = [(i,tup) for i, tup in enumerate(test_new) if tup[1] == child_index]
-      parent_tupple = [(i, tup) for i, tup in enumerate(test_new) if tup[1] == parent_index]
+    if not check_result:
+      raise ValueError('Joined rows are not identical in terms of admin, calculations, function and disaggregations')
+    # get the data and dataframe indeces of parents and children
+    child_tupple = [(i,tup) for i, tup in enumerate(test_new) if tup[1] == child_index]
+    parent_tupple = [(i, tup) for i, tup in enumerate(test_new) if tup[1] == parent_index]
 
-      child_tupple_data = child_tupple[0][1][0].copy()
-      child_tupple_index = child_tupple[0][0]
-      parent_tupple_data = parent_tupple[0][1][0].copy()
-      parent_tupple_index = parent_tupple[0][0]
+    child_tupple_data = child_tupple[0][1][0].copy()
+    child_tupple_index = child_tupple[0][0]
+    parent_tupple_data = parent_tupple[0][1][0].copy()
+    parent_tupple_index = parent_tupple[0][0]
 
-      # rename the data so that they are readable
-      varnames = [parent_tupple_data['variable'][0],child_tupple_data['variable'][0]]
-      dataframes =[parent_tupple_data, child_tupple_data]
+    # rename the data so that they are readable
+    varnames = [parent_tupple_data['variable'][0],child_tupple_data['variable'][0]]
+    dataframes =[parent_tupple_data, child_tupple_data]
 
-      for var, dataframe in  zip(varnames, dataframes):
-        rename_dict = {'mean': 'mean_'+var, 'count': 'count_'+var, 'perc': 'perc_'+var,
-                       'min': 'min_'+var, 'max': 'max_'+var}
+    for var, dataframe in  zip(varnames, dataframes):
+      rename_dict = {'mean': 'mean_'+var, 'count': 'count_'+var, 'perc': 'perc_'+var,
+                     'min': 'min_'+var, 'max': 'max_'+var}
 
-        for old_name, new_name in rename_dict.items():
-          if old_name in dataframe.columns:
-              dataframe.rename(columns={old_name: new_name},inplace=True)
+      for old_name, new_name in rename_dict.items():
+        if old_name in dataframe.columns:
+          dataframe.rename(columns={old_name: new_name},inplace=True)
 
-      # get the lists of columns to keep and merge
-      columns_to_merge = [item for item in parent_tupple_data.columns if not any(word in item for word in ['mean', 'count',
-                                                                                                           'max','min',
-                                                                                                           'perc','variable'])]
-      columns_to_keep = columns_to_merge+ list(rename_dict.values())
+    # get the lists of columns to keep and merge
+    columns_to_merge = [item for item in parent_tupple_data.columns if not any(word in item for word in ['mean', 'count',
+                                                                                                          'max','min',
+                                                                                                          'perc','variable'])]
+    columns_to_keep = columns_to_merge+ list(rename_dict.values())
 
-      parent_tupple_data= parent_tupple_data.merge(
-          child_tupple_data[child_tupple_data.columns.intersection(columns_to_keep)], on = columns_to_merge,how='left')
+    parent_tupple_data= parent_tupple_data.merge(
+      child_tupple_data[child_tupple_data.columns.intersection(columns_to_keep)], 
+      on = columns_to_merge,how='left')
 
 
-      parent_index_f = parent_tupple[0][1][1]
-      parent_label_f = str(child_tupple[0][1][2]).split()[0]+' & '+ str(parent_tupple[0][1][2])
+    parent_index_f = parent_tupple[0][1][1]
+    parent_label_f = str(child_tupple[0][1][2]).split()[0]+' & '+ str(parent_tupple[0][1][2])
 
-      new_list = (parent_tupple_data,parent_index_f,parent_label_f)
-      test_new[parent_tupple_index] = new_list
+    new_list = (parent_tupple_data,parent_index_f,parent_label_f)
+    test_new[parent_tupple_index] = new_list
 
-      del test_new[child_tupple_index]
+    del test_new[child_tupple_index]
 
 # write excel files
 print('Writing files')
