@@ -60,7 +60,14 @@ Meaning that the disaggregation presented on the `main` sheet with `ID` 2 will b
 The `operation` column supports the following operations "<", ">", "<=", ">=", "!=", "==". You can filter your `main` disaggregation with 3 types of filtering operations:
  - Numeric filter (e.g. variable > 5)
  - Character filter (e.g. variable == Yes) **No quotation marks are needed**
- - Variable filter (e.g. variable > variable2) **Be careful when using this**
+ - Variable filter (e.g. variable > variable2) **Be careful when using this**  
+
+You can add multiple filters per 1 row of your main DAF sheet, just add them in separate rows in the filter sheet like this:
+
+|ID|	variable|	operation|	value|
+|--|----------|---------------|------------|
+|2| Age|>|18|
+|2| Age|<|40|
 
 ## Inputs
 
