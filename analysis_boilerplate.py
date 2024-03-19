@@ -20,6 +20,7 @@ excel_path_daf = 'resources/DAF_example.xlsx'
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx'
 
 label_colname = 'label::English'
+weighting_column = 'weight' # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
 
 # end of the input section #
 
@@ -57,7 +58,7 @@ for sheet_name in sheets:
 
 
 names_data = names_data.reset_index(drop=True)
-names_data
+#names_data
 
 daf_merged = daf.merge(names_data,on='variable', how = 'left')
 
@@ -100,8 +101,8 @@ else:
 
 print('Building basic tables')
 daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
-daf_final['q.type'].fillna('select_one',inplace= True)
-test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column ='weight')
+daf_final['q.type']=daf_final['q.type'].fillna('select_one')
+test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column)
 
 ###Get the dashboard inputs
 

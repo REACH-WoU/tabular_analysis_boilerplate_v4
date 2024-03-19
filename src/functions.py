@@ -4,7 +4,8 @@ import re
 from itertools import combinations
 from openpyxl.styles import PatternFill, Font
 from openpyxl import Workbook
-
+import warnings
+warnings.filterwarnings("ignore", 'This pattern is interpreted as a regular expression, and has match groups.')
 
 # %load Functions.py
 def load_tool_choices(filename_tool, label_colname, keep_cols=False):
