@@ -15,8 +15,11 @@ research_cycle = 'test_cycle'
 id_round = '1'
 date = datetime.today().strftime('%Y_%m_%d')
 
+parquet_inputs = True
 excel_path_data = 'data/test_frame_2.xlsx'
-excel_path_daf = 'resources/DAF_example.xlsx'
+parquet_path_data = 'data/parquet_inputs/'
+
+excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx'
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx'
 
 label_colname = 'label::English'
@@ -25,7 +28,18 @@ weighting_column = 'weight' # add the name of your weight column or write None (
 # end of the input section #
 
 # load the frames
-data = pd.read_excel(excel_path_data, sheet_name=None)
+if parquet_inputs:
+  files = os.listdir(parquet_path_data)
+  files = [file for file in files if file.endswith('.parquet')] # keep only parquet files
+  sheet_names = [filename.split('.')[0] for filename in files] # get sheet names
+  if len(files)==0:
+    raise ValueError('No files in the provided directory')
+  data = {}
+  for inx,file_id in enumerate(files):
+    data[sheet_names[inx]] = pd.read_parquet(os.path.join(parquet_path_data, file_id), engine='pyarrow') # read them
+else:
+  data = pd.read_excel(excel_path_data, sheet_name=None)
+
 sheets = list(data.keys())
 
 tool_choices = load_tool_choices(filename_tool = excel_path_tool,label_colname=label_colname)
@@ -189,5 +203,5 @@ filename_wide_toc = 'output/'+filename+'_wide_TOC.xlsx'
 
 construct_result_table(test_new, filename_toc,make_pivot_with_strata = False)
 construct_result_table(test, filename_wide_toc,make_pivot_with_strata = True)
-concatenated_df.to_excel(filename_dash)
+concatenated_df.to_excel(filename_dash, index=False)
 print('All done. congratulations')
