@@ -16,10 +16,10 @@ id_round = '1'
 date = datetime.today().strftime('%Y_%m_%d')
 
 parquet_inputs = True
-excel_path_data = 'data/test_frame_2.xlsx'
+excel_path_data = 'data/test_frame.xlsx'
 parquet_path_data = 'data/parquet_inputs/'
 
-excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx'
+excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_2.xlsx'
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx'
 
 label_colname = 'label::English'
@@ -50,7 +50,7 @@ tool_survey = load_tool_survey(filename_tool = excel_path_tool,label_colname=lab
 
 # add the Overall column to your data
 for sheet_name in sheets:
-  data[sheet_name]['Overall'] ='Overall'
+  data[sheet_name]['overall'] =' Overall'
 
 
 # check DAF for potential issues
@@ -81,8 +81,7 @@ daf_merged = check_daf_consistency(daf_merged, data, sheets, resolve=False)
 print('Checking your filter page and building the filter dictionary')
 
 if filter_daf.shape[0]>0:
-  check_daf_filter(daf =daf_merged, filter_daf=filter_daf, tool_survey=tool_survey, tool_choices=tool_choices)
-
+  check_daf_filter(daf =daf_merged, data = data,filter_daf=filter_daf, tool_survey=tool_survey, tool_choices=tool_choices)
   # Create filter dictionary object 
   filter_daf_full = filter_daf.merge(daf_merged[['ID','datasheet']], on = 'ID',how = 'left')
 
@@ -98,7 +97,6 @@ if filter_daf.shape[0]>0:
     else:
       # Otherwise just keep as is
       condition_str = f"(data['{row['datasheet']}']['{row['variable']}'] {row['operation']} {row['value']})"
-
     if row['ID'] in filter_dict:
       filter_dict[row['ID']].append(condition_str)
     else:
@@ -123,9 +121,9 @@ test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_su
 concatenated_df = pd.concat([tpl[0] for tpl in test], ignore_index = True)
 concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total') & (concatenated_df['disaggregations_category_1'] != 'Total')]
 
-concatenated_df.loc[:,['disaggregations_category_1','disaggregations_1']].fillna('Overall', inplace=True)
-concatenated_df.loc[:,['disaggregations_category_1', 'disaggregations_1']] = concatenated_df.loc[:,['disaggregations_category_1', 'disaggregations_1']].fillna('Overall')
 
+disagg_columns = [col for col in concatenated_df.columns if col.startswith('disaggregations')]
+concatenated_df.loc[:,disagg_columns] = concatenated_df[disagg_columns].fillna(' Overall')
 
 # Join tables if needed
 print('Joining tables if such was specified')

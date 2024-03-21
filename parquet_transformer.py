@@ -2,7 +2,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-
+# enter that path do your data
 excel_path_data = 'data/test_frame.xlsx'
 
 data = pd.read_excel(excel_path_data, sheet_name=None)

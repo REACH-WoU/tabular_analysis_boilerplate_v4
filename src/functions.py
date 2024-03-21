@@ -86,7 +86,7 @@ def get_variable_type(data, variable_name):
     elif data[variable_name].dtype == 'float64' or data[variable_name].dtype == 'float' or data[variable_name].dtype == 'float32':
         return 'decimal'
 
-def check_daf_filter(daf, filter_daf, tool_survey, tool_choices):
+def check_daf_filter(daf,data, filter_daf, tool_survey, tool_choices):
     merged_daf = filter_daf.merge(daf, on='ID', how='inner')
     # some calculate variables can be NaN
     merged_daf = merged_daf.drop(['calculation','join','disaggregations'], axis=1)
@@ -155,7 +155,8 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
                 daf.drop(id, inplace=True)
 
         if row["disaggregations"] not in ["overall", ""] and not pd.isna(row['disaggregations']):
-            disaggregations_list = row["disaggregations"].split(" ")
+            row["disaggregations"] = row["disaggregations"].replace(" ","")
+            disaggregations_list = row["disaggregations"].split(",")
 
             for disaggregations_item in disaggregations_list:
                 if disaggregations_item not in data[row["datasheet"]].columns:
@@ -313,13 +314,14 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
         for i, row in daf_final_freq.iterrows():
             # break down the disaggregations into a convenient list
             if not pd.isna(daf_final_freq.iloc[i]['disaggregations']):
-              if ' ' in daf_final_freq.iloc[i]['disaggregations']:
-                  disaggregations = daf_final_freq.iloc[i]['disaggregations'].split(' ')
+              if ',' in daf_final_freq.iloc[i]['disaggregations']:
+                  disaggregations = daf_final_freq.iloc[i]['disaggregations'].split(',')
+                  disaggregations = [s.replace(" ", "") for s in disaggregations]
               else:
                   disaggregations = [daf_final_freq.iloc[i]['disaggregations']]
+                  disaggregations = [s.replace(" ", "") for s in disaggregations]
             else:
               disaggregations = []
-
             if not pd.isna(daf_final_freq.iloc[i]['calculation']):
               # break down the calculations
               if ' ' in daf_final_freq.iloc[i]['calculation']:
@@ -333,7 +335,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
             # get the correct sheet & add filters
             if daf_final_freq.iloc[i]['ID'] in filter_dictionary.keys():
-              filter_text = 'data["'+daf_final_freq.iloc[i]['datasheet']+'"]['+filter_dict[daf_final_freq.iloc[i]['ID']]
+              filter_text = 'data["'+daf_final_freq.iloc[i]['datasheet']+'"]['+filter_dictionary[daf_final_freq.iloc[i]['ID']]
               data_temp = eval(filter_text)
             else:
               data_temp  = data[daf_final_freq.iloc[i]['datasheet']]
@@ -471,14 +473,13 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
 
               if disaggregations != []:
-                label = daf_final_freq.iloc[i]['variable']+' broken down by '+', '.join(disaggregations) + ' on the admin of '+daf_final_freq.iloc[i]['admin']
+                label = daf_final_freq.iloc[i]['variable']+' broken down by '+ daf_final_freq.iloc[i]['disaggregations_label'] + ' on the admin of '+daf_final_freq.iloc[i]['admin']
               else:
                 label = daf_final_freq.iloc[i]['variable']+' on the admin of '+daf_final_freq.iloc[i]['admin']
 
-
-              columns = ['admin','admin_category','option','variable']+[col for col in summary_stats_full.columns if col.startswith('disaggregations')] + ['perc','count']
+              disagg_columns = [col for col in summary_stats_full.columns if col.startswith('disaggregations')]
+              columns = ['admin','admin_category','option','variable']+ disagg_columns + ['perc','count']
               summary_stats_full = summary_stats_full[columns]
-
               df_list.append((summary_stats_full, daf_final_freq['ID'][i], label))
 
 
@@ -496,7 +497,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
           # get the correct sheet & add filters
           if daf_final_num.iloc[i]['ID'] in filter_dictionary.keys():
-            filter_text = 'data["'+daf_final_num.iloc[i]['datasheet']+'"]['+filter_dict[daf_final_num.iloc[i]['ID']]
+            filter_text = 'data["'+daf_final_num.iloc[i]['datasheet']+'"]['+filter_dictionary[daf_final_num.iloc[i]['ID']]
             data_temp = eval(filter_text)
           else:
             data_temp  = data[daf_final_num.iloc[i]['datasheet']]
@@ -527,7 +528,6 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
 
             summary_stats.rename(columns=new_column_names, inplace=True)
-            summary_stats
 
             summary_stats['admin'] = daf_final_num['admin'][i]
             summary_stats['variable'] = daf_final_num['variable'][i]
@@ -569,11 +569,12 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
               summary_stats = pd.concat([summary_stats, summary_stats_total], ignore_index=True)
             if disaggregations != []:
-              label = daf_final_num.iloc[i]['variable']+' broken down by '+', '.join(disaggregations) + ' on the admin of '+daf_final_num.iloc[i]['admin']
+              label = daf_final_num.iloc[i]['variable']+' broken down by '+ daf_final_freq.iloc[i]['disaggregations_label'] + ' on the admin of '+daf_final_num.iloc[i]['admin']
             else:
               label = daf_final_num.iloc[i]['variable']+' on the admin of '+daf_final_num.iloc[i]['admin']
 
-            columns = ['admin','admin_category','variable']+[col for col in summary_stats.columns if col.startswith('disaggregations')] + ['mean','min','max','count']
+            disagg_columns = [col for col in summary_stats_full.columns if col.startswith('disaggregations')]
+            columns = ['admin','admin_category','variable']+disagg_columns + ['mean','min','max','count']
             summary_stats = summary_stats[columns]
 
             df_list.append((summary_stats, daf_final_num['ID'][i], label))
