@@ -56,7 +56,7 @@ for sheet_name in sheets:
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
-daf.rename({'admin':'admin'},inplace=True)
+#daf.rename({'admin':'admin'},inplace=True)
 filter_daf = pd.read_excel(excel_path_daf, sheet_name="filter")
 # add the datasheet column
 

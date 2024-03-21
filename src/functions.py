@@ -468,7 +468,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
                   for j, column_name in enumerate(disaggregations):
                     summary_stats_total[f'disaggregations_{j+1}'] = 'Total'
                     summary_stats_total[f'disaggregations_category_{j+1}'] = 'Total'
-
+                
                 summary_stats_full = pd.concat([summary_stats_full, summary_stats_total], ignore_index=True)
 
 
@@ -478,7 +478,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
                 label = daf_final_freq.iloc[i]['variable']+' on the admin of '+daf_final_freq.iloc[i]['admin']
 
               disagg_columns = [col for col in summary_stats_full.columns if col.startswith('disaggregations')]
-              columns = ['admin','admin_category','option','variable']+ disagg_columns + ['perc','count']
+              summary_stats_full['ID'] = daf_final_freq.iloc[i]['ID']
+              columns = ['ID','admin','admin_category','option','variable']+ disagg_columns + ['perc','count']
               summary_stats_full = summary_stats_full[columns]
               df_list.append((summary_stats_full, daf_final_freq['ID'][i], label))
 
@@ -569,12 +570,13 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
               summary_stats = pd.concat([summary_stats, summary_stats_total], ignore_index=True)
             if disaggregations != []:
-              label = daf_final_num.iloc[i]['variable']+' broken down by '+ daf_final_freq.iloc[i]['disaggregations_label'] + ' on the admin of '+daf_final_num.iloc[i]['admin']
+              label = daf_final_num.iloc[i]['variable']+' broken down by '+ daf_final_num.iloc[i]['disaggregations_label'] + ' on the admin of '+daf_final_num.iloc[i]['admin']
             else:
               label = daf_final_num.iloc[i]['variable']+' on the admin of '+daf_final_num.iloc[i]['admin']
 
             disagg_columns = [col for col in summary_stats_full.columns if col.startswith('disaggregations')]
-            columns = ['admin','admin_category','variable']+disagg_columns + ['mean','min','max','count']
+            summary_stats['ID'] = daf_final_num.iloc[i]['ID']
+            columns = ['ID','admin','admin_category','variable']+disagg_columns + ['mean','min','max','count']
             summary_stats = summary_stats[columns]
 
             df_list.append((summary_stats, daf_final_num['ID'][i], label))
