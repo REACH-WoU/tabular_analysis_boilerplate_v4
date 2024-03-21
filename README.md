@@ -1,6 +1,9 @@
 # Tabular analysis V4  
 This boilerplate is an improved version of [tabular_analysis_boilerplate_v3](https://github.com/REACH-WoU/tabular_analysis_boilerplate_v3) with similar use functionality and requirements. The main difference between the two versions is that V4 is written in Python as opposed to R and thus, is much faster. The text below guides the user how to use the script to run different analyses. This script produces a traditional TOC table, a wide TOC table that uses the admin variable to pivot the tables as well as a long table that serves as dashboard inputs for dashboards that work on frequency tables.
 
+## Parquet data transformation
+V4 allows the user to run the script faster through an improved data processing functionality as well as data load time. When working with large datasets it is recommended that the user transforms their data into a `.parquet` format prior to running the script. To do so they have to open the `parquet_transformer.py` file and input the path to their original `.xslx` data file as the `excel_path_data` input. When running the main script `analysis_boilerplate.py` the user has to specify that they are working with `.parquet` inputs by setting the `parquet_inputs` parameter to `True` and providing the directory of the `.parquet` files. By default they will be located in `data/parquet_inputs/`.
+
 ## Table of Contents
 - [Basic inputs](#Basic-inputs-to-the-script)
 - [Filling out the DAF form](#Filling-out-the-DAF-form)
@@ -75,9 +78,11 @@ Prior to running the script please fill in:
  - Your working directory in row 6
  - The name of your research cycle in row 14
  - The round of your research cycle in row 15
- - The relevant relative paths and names of your Data, Kobo tool and DAF files in rows 18-20
+ - Whether you have transformed the data into a `.parquet` format in line 18 (the script will run much faster if you did)
+ - The relevant relative paths and names of your Data, Kobo tool and DAF files in rows 19-23
  - The name of your label column **Must be identical in Kobo tool and survey sheets!!**
- - If you want to add any new variables not present in the data, please do so in the block that starts on line 34, please note that the new variables will be assigned a frequency type of `select_one` if they are not present in the Kobo tool.
+ - The name of your weight column in line 26. If you don't have one, write `None` in this line.
+ - If you want to add any new variables not present in the data, please do so in the block that starts on line 49 (data transformation section), please note that the new variables will be assigned a frequency type of `select_one` if they are not present in the Kobo tool.
 
 ## Checks
 The script goes through the following checks:
