@@ -254,14 +254,7 @@ def construct_result_table(tables_list,file_name, make_pivot_with_strata = False
               pivot_table = pivot_table.sort_values(by='admin_category', key=lambda x: x.map(custom_sort_key))
 
         else:
-        #   if 'disaggregations_category_1' in table.columns:
-        #       pivot_columns = ["disaggregations_category_1"]
-        #       if "disaggregations_category_2" in table.columns:
-        #           pivot_columns.append("disaggregations_category_2")
-        #   else:
-        #     pivot_columns = []
           pivot_table = table
-          # pivot_table = make_pivot(table, pivot_columns, ["admin_category"], values_variable)
 
 
         cell_id = f"A{link_idx}"
@@ -270,8 +263,15 @@ def construct_result_table(tables_list,file_name, make_pivot_with_strata = False
         data_sheet.append(list(pivot_table.columns))
         for _, row in pivot_table.iterrows():
             if values_variable == "perc":
-              row = [f'{value:.2%}' if isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value) else value for value in row]
-            data_sheet.append(list(row))
+              row_id = data_sheet.max_row + 1
+              for i, value in enumerate(row):
+                if isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value):
+                    cell = data_sheet.cell(row=row_id, column=i + 1)
+                    cell.value = value
+                    cell.number_format = '0.00%'
+                else:
+                  cell = data_sheet.cell(row=row_id, column=i + 1)
+                  cell.value = value
         data_sheet.append([])
 
         text_on_link = label + ' ' + values_variable
