@@ -56,7 +56,12 @@ for sheet_name in sheets:
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
-#daf.rename({'admin':'admin'},inplace=True)
+daf['variable'] = daf['variable'].apply(lambda x: x.strip())
+
+wrong_functions = set(daf['func'])-{'mean','numeric','select_one','select_multiple','freq'}
+if len(wrong_functions)>0:
+
+  raise ValueError(f'Wrong functions entered: '+str(wrong_functions)+'. Please fix your function entries')
 filter_daf = pd.read_excel(excel_path_daf, sheet_name="filter")
 # add the datasheet column
 
@@ -72,7 +77,24 @@ for sheet_name in sheets:
 
 
 names_data = names_data.reset_index(drop=True)
-#names_data
+# check if we have any duplicates
+duplicates_frame = names_data.duplicated(subset='variable', keep=False)
+if duplicates_frame[duplicates_frame==True].shape[0] >0:
+  # get non duplicate entries
+  names_data_non_dupl = names_data[~duplicates_frame]
+  deduplicated_frame = pd.DataFrame()
+  # run a loop for all duplicated names
+  for i in names_data.loc[duplicates_frame,'variable'].unique():
+    temp_names =  names_data[names_data['variable']==i]
+    temp_names = temp_names.reset_index(drop=True)
+    # if the variable is present in main sheet, keep only that version
+    if 'main' in temp_names['datasheet']:
+      temp_names = temp_names[temp_names['datasheet']=='main']
+    # else, keep whatever is available on the first row
+    else:
+      temp_names = temp_names[:1]
+    deduplicated_frame=pd.concat([deduplicated_frame, temp_names])
+  names_data = pd.concat([names_data_non_dupl,deduplicated_frame])
 
 daf_merged = daf.merge(names_data,on='variable', how = 'left')
 
@@ -114,7 +136,7 @@ else:
 print('Building basic tables')
 daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
 daf_final['q.type']=daf_final['q.type'].fillna('select_one')
-test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column)
+test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column, id_column='uuid')
 
 ###Get the dashboard inputs
 
