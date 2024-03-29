@@ -27,23 +27,23 @@ Some details for relevant columns:
 - `ID` - new column, please fill it in. **Each row has to be unique, and should start with 1**
 - `variable` - This name should match exactly what you have in your Kobo tool and your dataframe, any differences will produce errors in the script
 - `calculation` -The current script supports two specifications of this columns, the same as V3. `include_na` Replaces NA values of the `variable` with `No data available (NA)`. `add_total` does the same but adds the general frequency table of the dependent variabme ommiting all of the entries in `admin` and `disaggregations` columns. You can leave it blank if you don't care about any of this.
-- `func` - If you want to run a frequency analysis specify `freq`, `select_one`, `select_multiple` in the cell. If you want to get a weighted mean for the variable, specify `numeric` in the cell.
+- `func` - If you want to run a frequency analysis specify `freq`, `select_one`, `select_multiple` in the cell. If you want to get a weighted mean for the variable, specify `numeric` or `mean` in the cell.
 - `disaggregations` the current version of the scripts supports multiple disaggregation columns, to use this, enter multiple disaggregation names in the cell and separate them with a comma `,`
 - `admin` - works the same as in the previous version if you want to get the overall value, input `Overall`. The difference from V3 is that you don't have to be limited to choosing between `strata` and `Overall`, you can add whatever geospatial column name you want be it `oblast`, `raion`, `hromada` or the old-school `strata` as long as it's present in the data, you're golden.
 - `join` - for cases where you want to make a table wider by merging a few tables together, input the `ID` of the parent table into the cell of `join` column. It is recommended that you only use this functionality if you have the same values in `disaggregations`,`func`,`calculation`,`admin`,`q.type` of the different rows. It is also required that the variables are related only with relationships of type `parent`-`child`. This essentially means that if you have the following table:
 
 |ID|	variable|	variable_label|	calculation|	func|	admin|	disaggregations	|disaggregations_label|	join|
 |--|----------|---------------|------------|------|------|------------------|---------------------|-----|
-|1| variable_1|variable_1_labl|numeric| |Overall | age_group|Age group||
-|2| variable_2|variable_2_labl|numeric| |Overall | age_group|Age group|1|
-|3| variable_3|variable_3_labl|numeric| |Overall | age_group|Age group|1|
+|1| variable1|variable1_lab|numeric| |Overall | age_group|Age group||
+|2| variable2|variable2_lab|numeric| |Overall | age_group|Age group|1|
+|3| variable3|variable3_lab|numeric| |Overall | age_group|Age group|1|
 
 In this example a `parent`-`child` relationships mean 'variable_1' is the `parent` table, while `variable_2` and `variable_3` are the `child` tables. This table will create a numeric breakdown table that will have mean, min, max and count columns for all 3 variables. The individual tables for each variables will be removed from the output files. However, if you've input this relationship as:
 |ID|	variable|	variable_label|	calculation|	func|	admin|	disaggregations	|disaggregations_label|	join|
 |--|----------|---------------|------------|------|------|------------------|---------------------|-----|
-|1| variable_1|variable_1_labl|numeric| |Overall | age_group|Age group||
-|2| variable_2|variable_2_labl|numeric| |Overall | age_group|Age group|1|
-|3| variable_3|variable_3_labl|numeric| |Overall | age_group|Age group|2|
+|1| variable1|variable1_lab|numeric| |Overall | age_group|Age group||
+|2| variable2|variable2_lab|numeric| |Overall | age_group|Age group|1|
+|3| variable3|variable3_lab|numeric| |Overall | age_group|Age group|2|
 
 This wouldn't work, as now, we're talking about a `grandparent`-`parent`-`child` relationship. Those aren't supported by the current script.
 
