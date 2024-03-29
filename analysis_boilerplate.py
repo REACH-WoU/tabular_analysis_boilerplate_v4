@@ -14,6 +14,7 @@ from src.functions import *
 research_cycle = 'test_cycle'
 id_round = '1'
 date = datetime.today().strftime('%Y_%m_%d')
+unique_identifier = 'uuid'
 
 parquet_inputs = True
 excel_path_data = 'data/test_frame.xlsx'
@@ -136,7 +137,7 @@ else:
 print('Building basic tables')
 daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
 daf_final['q.type']=daf_final['q.type'].fillna('select_one')
-test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column, id_column='uuid')
+test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column, id_column=unique_identifier)
 
 ###Get the dashboard inputs
 
