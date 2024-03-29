@@ -75,13 +75,14 @@ You can add multiple filters per 1 row of your main DAF sheet, just add them in 
 ## Inputs
 
 Prior to running the script please fill in:
- - Your working directory in row 6
- - The name of your research cycle in row 14
- - The round of your research cycle in row 15
- - Whether you have transformed the data into a `.parquet` format in line 18 (the script will run much faster if you did)
- - The relevant relative paths and names of your Data, Kobo tool and DAF files in rows 19-23
+ - Your working directory 
+ - The name of your research cycle
+ - The round of your research cycle
+ - The unique identifier column in your data (`uuid` for most research cycles except longitudinal)
+ - Whether you have transformed the data into a `.parquet` format (the script will run much faster if you did)
+ - The relevant relative paths and names of your Data, Kobo tool and DAF files in rows
  - The name of your label column **Must be identical in Kobo tool and survey sheets!!**
- - The name of your weight column in line 26. If you don't have one, write `None` in this line.
+ - The name of your weight column. If you don't have one, write `None` in this line.
  - If you want to add any new variables not present in the data, please do so in the block that starts on line 49 (data transformation section), please note that the new variables will be assigned a frequency type of `select_one` if they are not present in the Kobo tool.
 
 ## Checks
@@ -90,6 +91,9 @@ The script goes through the following checks:
 - Check if all variables in `disaggregations`,`admin` are present in the datasheet where the `variable` is located
 - Check if `variable` is present on more than 1 datasheet
 - Check if the filter table was properly filled
+- Check if you have any duplicated names in your dataframe across multiple sheets. This is important as we're defyning what sheet each dependent variable (DAF column `variable`) belongs to. If your `variable` belongs to multiple sheets the algorightm will run the following checks:
+  - If the `variable` is present in multiple sheets and one of them is the `main` sheet, the algorithm will assume that you're trying to see disaggregations for `main` sheet only.
+  - If the `variable` is present in multiple sheets and none of them are on `main` it'll assume that you're trying to see the disaggregations on the first sheet where the `variable` is present. **Be cautious when working with data that has 1 variable present on multiple sheets**  
 
 # Outputs
 
