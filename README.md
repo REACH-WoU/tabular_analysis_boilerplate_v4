@@ -78,7 +78,6 @@ Prior to running the script please fill in:
  - Your working directory 
  - The name of your research cycle
  - The round of your research cycle
- - The unique identifier column in your data (`uuid` for most research cycles except longitudinal)
  - Whether you have transformed the data into a `.parquet` format (the script will run much faster if you did)
  - The relevant relative paths and names of your Data, Kobo tool and DAF files in rows
  - The name of your label column **Must be identical in Kobo tool and survey sheets!!**
