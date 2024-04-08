@@ -303,7 +303,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
     if weight_column == None:
         for sheet in data:
-            data[sheet]['weight']=1
+            data[sheet][weight_column]=1
     
     daf_final_freq = daf_final[daf_final['func'].isin(['freq', 'select_one', 'select_multiple'])]
     daf_final_num = daf_final[daf_final['func'].isin(['numeric','mean'])]
@@ -319,21 +319,19 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
             # break down the disaggregations into a convenient list
             if not pd.isna(daf_final_freq.iloc[i]['disaggregations']):
               if ',' in daf_final_freq.iloc[i]['disaggregations']:
-                  disaggregations = daf_final_freq.iloc[i]['disaggregations'].split(',')
-                  disaggregations = [s.replace(" ", "") for s in disaggregations]
+                disaggregations = daf_final_freq.iloc[i]['disaggregations'].split(',')
               else:
-                  disaggregations = [daf_final_freq.iloc[i]['disaggregations']]
-                  disaggregations = [s.replace(" ", "") for s in disaggregations]
+                disaggregations = [daf_final_freq.iloc[i]['disaggregations']]
+              disaggregations = [s.replace(" ", "") for s in disaggregations]
             else:
               disaggregations = []
             if not pd.isna(daf_final_freq.iloc[i]['calculation']):
               # break down the calculations
               if ' ' in daf_final_freq.iloc[i]['calculation']:
                 calc = daf_final_freq.iloc[i]['calculation'].split(',')
-                calc = [x.strip(' ') for x in calc]
               else:
                 calc = [daf_final_freq.iloc[i]['calculation']]
-                calc = [x.strip(' ') for x in calc]
+              calc = [x.strip(' ') for x in calc]
             else:
               calc = 'None'
 
@@ -363,11 +361,11 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
               # break down the data form SM
               if daf_final_freq.iloc[i]['q.type'] in ['select_multiple']:
-                  data_temp.loc[:,daf_final_freq.iloc[i]['variable']] = data_temp[daf_final_freq.iloc[i]['variable']].str.strip()
+                data_temp.loc[:,daf_final_freq.iloc[i]['variable']] = data_temp[daf_final_freq.iloc[i]['variable']].str.strip()
 
-                  data_temp.loc[:,daf_final_freq.iloc[i]['variable']] = data_temp[daf_final_freq.iloc[i]['variable']].str.split(' ').copy()
-                  # Separate rows using explode
-                  data_temp = data_temp.explode(daf_final_freq.iloc[i]['variable'], ignore_index=True)
+                data_temp.loc[:,daf_final_freq.iloc[i]['variable']] = data_temp[daf_final_freq.iloc[i]['variable']].str.split(' ').copy()
+                # Separate rows using explode
+                data_temp = data_temp.explode(daf_final_freq.iloc[i]['variable'], ignore_index=True)
 
               groupby_columns = [daf_final_freq['admin'][i]]+disaggregations+[daf_final_freq['variable'][i]]
 
@@ -397,17 +395,15 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
               summary_stats_full.rename(columns=new_column_names, inplace=True)
 
-
               summary_stats_full['admin'] = daf_final_freq['admin'][i]
               summary_stats_full['variable'] = daf_final_freq['variable'][i]
 
               if disaggregations != []:
                 for j, column_name in enumerate(disaggregations):
-                    summary_stats_full[f'disaggregations_{j+1}'] = disaggregations[j]
+                  summary_stats_full[f'disaggregations_{j+1}'] = disaggregations[j]
 
 
               # option replacer
-
 
               if tool_survey['name'].isin([daf_final_freq.loc[i,'variable']]).any():
                 summary_stats_full = map_names(column_name= 'variable',
@@ -421,21 +417,21 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
               # disaggregations category replacer
               if disaggregations != [] and tool_survey['name'].isin(disaggregations).any():
                 for j, column_name in enumerate(disaggregations):
-                    if disaggregations[j] in set(tool_survey['name']):
-                        summary_stats_full = map_names(column_name= f'disaggregations_{j+1}',
-                                                       column_values_name=f'disaggregations_category_{j+1}', 
-                                                       summary_table = summary_stats_full,
-                                                       tool_survey=tool_survey,
-                                                       tool_choices=tool_choices)
+                  if disaggregations[j] in set(tool_survey['name']):
+                     summary_stats_full = map_names(column_name= f'disaggregations_{j+1}',
+                                                    column_values_name=f'disaggregations_category_{j+1}', 
+                                                    summary_table = summary_stats_full,
+                                                    tool_survey=tool_survey,
+                                                    tool_choices=tool_choices)
 
               # admin category replacer
 
               if tool_survey['name'].isin([daf_final_freq.loc[i,'admin']]).any():
-                  summary_stats_full = map_names(column_name= 'admin',
-                                                 column_values_name='admin_category', 
-                                                 summary_table = summary_stats_full,
-                                                 tool_survey=tool_survey,
-                                                 tool_choices=tool_choices)
+                 summary_stats_full = map_names(column_name= 'admin',
+                                                column_values_name='admin_category', 
+                                                summary_table = summary_stats_full,
+                                                tool_survey=tool_survey,
+                                                tool_choices=tool_choices)
 
 
               # add proper labels
@@ -501,13 +497,13 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
     # Deal with numerics
         for i, row in daf_final_num.iterrows():
           if not pd.isna(daf_final_num.iloc[i]['disaggregations']):
-              if ' ' in daf_final_num.iloc[i]['disaggregations']:
-                  disaggregations = daf_final_num.iloc[i]['disaggregations'].split(' ')
+              if ',' in daf_final_num.iloc[i]['disaggregations']:
+                disaggregations = daf_final_num.iloc[i]['disaggregations'].split(',')
               else:
-                  disaggregations = [daf_final_num.iloc[i]['disaggregations']]
+                disaggregations = [daf_final_num.iloc[i]['disaggregations']]
+              disaggregations = [s.replace(" ", "") for s in disaggregations]
           else:
             disaggregations = []
-
 
           # get the correct sheet & add filters
           if daf_final_num.iloc[i]['ID'] in filter_dictionary.keys():
@@ -537,7 +533,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
             if disaggregations != []:
               for j, column_name in enumerate(disaggregations):
-                  new_column_names[column_name] = f'disaggregations_category_{j+1}'
+                new_column_names[column_name] = f'disaggregations_category_{j+1}'
 
 
 
@@ -548,25 +544,25 @@ def disaggregation_creator(daf_final, data, filter_dictionary,tool_choices, tool
 
             if disaggregations != []:
               for j, column_name in enumerate(disaggregations):
-                  summary_stats[f'disaggregations_{j+1}'] = disaggregations[j]
+                summary_stats[f'disaggregations_{j+1}'] = disaggregations[j]
 
             # disaggregations category replacer
             if disaggregations != [] and tool_survey['name'].isin(disaggregations).any():
               for j, column_name in enumerate(disaggregations):
-                  if disaggregations[j] in set(tool_survey['name']):
-                      summary_stats = map_names(column_name= f'disaggregations_{j+1}',
-                                                column_values_name=f'disaggregations_category_{j+1}', 
-                                                summary_table = summary_stats,
-                                                tool_survey=tool_survey,
-                                                tool_choices=tool_choices)
+                if disaggregations[j] in set(tool_survey['name']):
+                  summary_stats = map_names(column_name= f'disaggregations_{j+1}',
+                                            column_values_name=f'disaggregations_category_{j+1}', 
+                                            summary_table = summary_stats,
+                                            tool_survey=tool_survey,
+                                            tool_choices=tool_choices)
 
             # admin category replacer
             if tool_survey['name'].isin([daf_final_num.loc[i,'admin']]).any():
-                summary_stats = map_names(column_name= 'admin',
-                                          column_values_name='admin_category', 
-                                          summary_table = summary_stats,
-                                          tool_survey=tool_survey,
-                                          tool_choices=tool_choices)
+              summary_stats = map_names(column_name= 'admin',
+                                        column_values_name='admin_category', 
+                                        summary_table = summary_stats,
+                                        tool_survey=tool_survey,
+                                        tool_choices=tool_choices)
 
 
             # add proper labels
