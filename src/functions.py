@@ -323,6 +323,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                     else:
                         cell = data_sheet.cell(row=row_id, column=i + 1)
                         cell.value = value
+            else:
+                data_sheet.append(list(row))
         data_sheet.append([])
 
         text_on_link = label + ' ' + values_variable
