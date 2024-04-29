@@ -43,6 +43,9 @@ else:
 
 sheets = list(data.keys())
 
+if 'main' not in sheets:
+  raise ValueError('One of your sheets (primary sheet) has to be called `main`, please fix.')
+
 tool_choices = load_tool_choices(filename_tool = excel_path_tool,label_colname=label_colname)
 tool_survey = load_tool_survey(filename_tool = excel_path_tool,label_colname=label_colname)
 

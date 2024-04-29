@@ -93,10 +93,13 @@ The script goes through the following checks:
 - Check if you have any duplicated names in your dataframe across multiple sheets. This is important as we're defyning what sheet each dependent variable (DAF column `variable`) belongs to. If your `variable` belongs to multiple sheets the algorightm will run the following checks:
   - If the `variable` is present in multiple sheets and one of them is the `main` sheet, the algorithm will assume that you're trying to see disaggregations for `main` sheet only.
   - If the `variable` is present in multiple sheets and none of them are on `main` it'll assume that you're trying to see the disaggregations on the first sheet where the `variable` is present. **Be cautious when working with data that has 1 variable present on multiple sheets**  
+  - Check if you have any duplicates in your `ID` column
+  - Check if all of the numerics indicated in your `DAF` are actually numeric
 
 # Outputs
 
 The script will produce the following tables:
 - TOC table - identical to the V3's TOC table
+- TOC table count - same as above, but with counts instead of percentages
 - TOC table wide - Same as the above table but pivoted by the admin variable to produce wider tables for more geographically inclined DAF files
 - Dashboard input table - a table that is designed to be a better fit for dashboards that require a multivariate frequency table input
