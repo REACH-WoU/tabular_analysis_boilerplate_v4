@@ -1,4 +1,5 @@
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 import os
 from datetime import datetime
 
@@ -100,6 +101,21 @@ daf_merged = daf.merge(names_data,on='variable', how = 'left')
 
 daf_merged = check_daf_consistency(daf_merged, data, sheets, resolve=False)
 
+IDs = daf_merged['ID'].duplicated()
+if any(IDs):
+  raise ValueError('Duplicate IDs in the ID column of the DAF')
+
+# check if DAF numerics are really numeric
+daf_numeric = daf_merged[daf_merged['func'].isin(['numeric', 'mean'])]
+if daf_numeric.shape[0]>0:
+  for i, daf_row in daf_numeric.iterrows():
+    res  = is_numeric_dtype(data[daf_row['datasheet']][daf_row['variable']])
+    if res == False:
+      raise ValueError(f"Variable {
+                             daf_row['variable']} from datasheet {
+                               daf_row['datasheet']} is not numeric, but you want to apply a mean function to it in your DAF")
+
+
 print('Checking your filter page and building the filter dictionary')
 
 if filter_daf.shape[0]>0:
@@ -136,11 +152,12 @@ else:
 print('Building basic tables')
 daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
 daf_final['q.type']=daf_final['q.type'].fillna('select_one')
-test = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column)
+disaggregations_perc = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column,add_perc=True)
+disaggregations_count = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column,add_perc=False)
 
 ###Get the dashboard inputs
 
-concatenated_df = pd.concat([tpl[0] for tpl in test], ignore_index = True)
+concatenated_df = pd.concat([tpl[0] for tpl in disaggregations_perc], ignore_index = True)
 concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total') & (concatenated_df['disaggregations_category_1'] != 'Total')]
 
 
@@ -149,7 +166,7 @@ concatenated_df.loc[:,disagg_columns] = concatenated_df[disagg_columns].fillna('
 
 # Join tables if needed
 print('Joining tables if such was specified')
-test_new = test.copy()
+disaggregations_perc_new = disaggregations_perc.copy()
 # check if any joining is needed
 if pd.notna(daf_final['join']).any():
 
@@ -174,8 +191,8 @@ if pd.notna(daf_final['join']).any():
     if not check_result:
       raise ValueError('Joined rows are not identical in terms of admin, calculations, function and disaggregations')
     # get the data and dataframe indeces of parents and children
-    child_tupple = [(i,tup) for i, tup in enumerate(test_new) if tup[1] == child_index]
-    parent_tupple = [(i, tup) for i, tup in enumerate(test_new) if tup[1] == parent_index]
+    child_tupple = [(i,tup) for i, tup in enumerate(disaggregations_perc_new) if tup[1] == child_index]
+    parent_tupple = [(i, tup) for i, tup in enumerate(disaggregations_perc_new) if tup[1] == parent_index]
 
     child_tupple_data = child_tupple[0][1][0].copy()
     child_tupple_index = child_tupple[0][0]
@@ -187,15 +204,15 @@ if pd.notna(daf_final['join']).any():
     dataframes =[parent_tupple_data, child_tupple_data]
 
     for var, dataframe in  zip(varnames, dataframes):
-      rename_dict = {'mean': 'mean_'+var, 'count': 'count_'+var, 'perc': 'perc_'+var,
-                     'min': 'min_'+var, 'max': 'max_'+var}
+      rename_dict = {'mean': 'mean_'+var,'median': 'median'+var ,'count': 'count_'+var, 
+                     'perc': 'perc_'+var,'min': 'min_'+var, 'max': 'max_'+var}
 
       for old_name, new_name in rename_dict.items():
         if old_name in dataframe.columns:
           dataframe.rename(columns={old_name: new_name},inplace=True)
 
     # get the lists of columns to keep and merge
-    columns_to_merge = [item for item in parent_tupple_data.columns if not any(word in item for word in ['mean', 'count',
+    columns_to_merge = [item for item in parent_tupple_data.columns if not any(word in item for word in ['mean','median' ,'count',
                                                                                                           'max','min',
                                                                                                           'perc','variable'])]
     columns_to_keep = columns_to_merge+ list(rename_dict.values())
@@ -209,9 +226,8 @@ if pd.notna(daf_final['join']).any():
     parent_label_f = str(child_tupple[0][1][2]).split()[0]+' & '+ str(parent_tupple[0][1][2])
 
     new_list = (parent_tupple_data,parent_index_f,parent_label_f)
-    test_new[parent_tupple_index] = new_list
-
-    del test_new[child_tupple_index]
+    disaggregations_perc_new[parent_tupple_index] = new_list
+    del disaggregations_perc_new[child_tupple_index]
 
 # write excel files
 print('Writing files')
@@ -219,9 +235,12 @@ filename = research_cycle+'_'+id_round+'_'+date
 
 filename_dash = 'output/'+filename+'_dashboard.xlsx'
 filename_toc = 'output/'+filename+'_TOC.xlsx'
+filename_toc_count = 'output/'+filename+'_TOC_count.xlsx'
 filename_wide_toc = 'output/'+filename+'_wide_TOC.xlsx'
 
-construct_result_table(test_new, filename_toc,make_pivot_with_strata = False)
-construct_result_table(test, filename_wide_toc,make_pivot_with_strata = True)
+
+construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False)
+construct_result_table(disaggregations_count, filename_toc_count,make_pivot_with_strata = False)
+construct_result_table(disaggregations_perc_new, filename_wide_toc,make_pivot_with_strata = True)
 concatenated_df.to_excel(filename_dash, index=False)
 print('All done. congratulations')
