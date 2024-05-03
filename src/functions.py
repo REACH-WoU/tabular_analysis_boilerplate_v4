@@ -368,7 +368,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
     return workbook
 
 
-def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey, weight_column=None, add_perc =True):
+def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey, weight_column=None):
 
     if weight_column == None:
         for sheet in data:
@@ -417,6 +417,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             # keep only those columns that we'll need
             selected_columns = [daf_final_freq['variable'][i]] + \
                 disaggregations+[daf_final_freq['admin'][i]]+[weight_column]
+            total_nrow = data_temp.shape[0]
             data_temp = data_temp[selected_columns]
             data_temp.loc[:, daf_final_freq['variable'][i]] = data_temp.loc[:, daf_final_freq['variable'][i]].apply(
                 lambda x: re.sub(' +', ' ', x) if isinstance(x, str) else x)
@@ -528,29 +529,22 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         j+1}'] = disaggregations_labels
 
                 # add perc
-                if add_perc==True:
-                    summary_stats_full['perc'] = round(
-                        summary_stats_full['category_count']/summary_stats_full['general_count'], 4)
+                summary_stats_full['perc'] = round(
+                    summary_stats_full['category_count']/summary_stats_full['general_count'], 4)
 
-                    summary_stats_full.drop(
-                        columns=['category_count', 'general_count'], inplace=True)
-                else:
-                    summary_stats_full['category_count'] = summary_stats_full['category_count'].round()
-                    summary_stats_full.rename(
-                    columns={'general_count': 'weighted_count'}, inplace=True)
-                    summary_stats_full['weighted_count'] = summary_stats_full['weighted_count'].round()
+                summary_stats_full['category_count'] = summary_stats_full['category_count'].round()
+                summary_stats_full.rename(columns={'general_count': 'weighted_count'}, inplace=True)
+                summary_stats_full['weighted_count'] = summary_stats_full['weighted_count'].round()
 
                 if 'add_total' in calc:
                     summary_stats_total = data_temp.groupby(daf_final_freq['variable'][i])[
                         weight_column].agg(['sum'])  # remove count here bruh
                     summary_stats_total.reset_index(inplace=True)
                     # sometimes weights are wonky. so we're accounting for that
-                    if add_perc==True:
-                        summary_stats_total['perc'] = round(
-                            summary_stats_total['sum']/data_temp_backup[weight_column].sum(), 4)
-                    else:
-                        summary_stats_total['category_count'] = summary_stats_total['sum'].copy().round()
-                        summary_stats_total['weighted_count'] = data_temp_backup[weight_column].sum().round()
+                    summary_stats_total['perc'] = round(
+                        summary_stats_total['sum']/data_temp_backup[weight_column].sum(), 4)
+                    summary_stats_total['category_count'] = summary_stats_total['sum'].copy().round()
+                    summary_stats_total['weighted_count'] = data_temp_backup[weight_column].sum().round()
                     # add count (n of non-na rows)
                     summary_stats_total['count'] = data_temp_backup.shape[0]
                     # drom the sum column
@@ -597,12 +591,9 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 disagg_columns = [
                     col for col in summary_stats_full.columns if col.startswith('disaggregations')]
                 summary_stats_full['ID'] = daf_final_freq.iloc[i]['ID']
-                if add_perc ==True:
-                    columns = ['ID', 'admin', 'admin_category', 'option',
-                            'variable'] + disagg_columns + ['perc','count', 'full_count']
-                else:
-                    columns = ['ID', 'admin', 'admin_category', 'option',
-                               'variable'] + disagg_columns + ['category_count','weighted_count','count', 'full_count']
+                summary_stats_full['total_count_perc'] = round((summary_stats_full['full_count']/total_nrow)*100,2)
+                columns = ['ID', 'admin', 'admin_category', 'option',
+                            'variable'] + disagg_columns + ['category_count','weighted_count','perc','count', 'full_count','total_count_perc']
                     
                 summary_stats_full = summary_stats_full[columns]
                 df_list.append(
@@ -634,7 +625,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             selected_columns = [daf_final_num['variable'][i]] + \
                 disaggregations+[daf_final_num['admin'][i]]+[weight_column]
             data_temp = data_temp[selected_columns]
-
+            total_nrow = data_temp.shape[0]
             # drop all NA observations
             data_temp = data_temp[data_temp[daf_final_num['variable'][i]].notna()]
 
@@ -721,13 +712,13 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 else:
                     label = daf_final_num.iloc[i]['variable'] + \
                         ' on the admin of '+daf_final_num.iloc[i]['admin']
-
+                summary_stats['total_count_perc'] = round((summary_stats['full_count']/total_nrow)*100,2)
                 disagg_columns = [
                     col for col in summary_stats.columns if col.startswith('disaggregations')]
                 summary_stats['ID'] = daf_final_num.iloc[i]['ID']
                 columns = ['ID', 'admin', 'admin_category', 'variable'] + \
                     disagg_columns + ['mean', 'median','min',
-                                      'max', 'count', 'full_count']
+                                      'max', 'count', 'full_count','total_count_perc']
                 summary_stats = summary_stats[columns]
 
                 df_list.append((summary_stats, daf_final_num['ID'][i], label))

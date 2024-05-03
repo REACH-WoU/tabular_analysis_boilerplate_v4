@@ -2,6 +2,7 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import os
 from datetime import datetime
+from copy import deepcopy
 
 # set up your working directory
 os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
@@ -155,10 +156,26 @@ else:
 print('Building basic tables')
 daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
 daf_final['q.type']=daf_final['q.type'].fillna('select_one')
-disaggregations_perc = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column,add_perc=True)
-disaggregations_count = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column,add_perc=False)
+disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column)
 
-###Get the dashboard inputs
+
+disaggregations_perc = deepcopy(disaggregations_full)
+disaggregations_count = deepcopy(disaggregations_full)
+
+# remove counts prom perc table
+for element in disaggregations_perc:
+    if isinstance(element[0], pd.DataFrame):  
+        if all(column in element[0].columns for column in ['category_count','weighted_count']):
+          element[0].drop(columns=['category_count','weighted_count'], inplace=True)
+
+# remove perc columns from count table
+for element in disaggregations_count:
+    if isinstance(element[0], pd.DataFrame):  
+        if all(column in element[0].columns for column in ['perc']):
+          element[0].drop(columns=['perc'], inplace=True)
+
+
+##Get the dashboard inputs
 
 concatenated_df = pd.concat([tpl[0] for tpl in disaggregations_perc], ignore_index = True)
 concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total') & (concatenated_df['disaggregations_category_1'] != 'Total')]
