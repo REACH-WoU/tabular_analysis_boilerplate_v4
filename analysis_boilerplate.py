@@ -92,7 +92,7 @@ if duplicates_frame[duplicates_frame==True].shape[0] >0:
     temp_names =  names_data[names_data['variable']==i]
     temp_names = temp_names.reset_index(drop=True)
     # if the variable is present in main sheet, keep only that version
-    if 'main' in temp_names['datasheet']:
+    if temp_names['datasheet'].isin(['main']).any():
       temp_names = temp_names[temp_names['datasheet']=='main']
     # else, keep whatever is available on the first row
     else:
