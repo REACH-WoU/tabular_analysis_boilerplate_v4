@@ -93,8 +93,8 @@ The script goes through the following checks:
 - Check if you have any duplicated names in your dataframe across multiple sheets. This is important as we're defyning what sheet each dependent variable (DAF column `variable`) belongs to. If your `variable` belongs to multiple sheets the algorightm will run the following checks:
   - If the `variable` is present in multiple sheets and one of them is the `main` sheet, the algorithm will assume that you're trying to see disaggregations for `main` sheet only.
   - If the `variable` is present in multiple sheets and none of them are on `main` it'll assume that you're trying to see the disaggregations on the first sheet where the `variable` is present. **Be cautious when working with data that has 1 variable present on multiple sheets**  
-  - Check if you have any duplicates in your `ID` column
-  - Check if all of the numerics indicated in your `DAF` are actually numeric
+- Check if you have any duplicates in your `ID` column  
+- Check if all of the numerics indicated in your `DAF` are actually numeric
 
 # Outputs
 
