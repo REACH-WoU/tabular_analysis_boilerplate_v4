@@ -95,7 +95,7 @@ The script goes through the following checks:
   - If the `variable` is present in multiple sheets and none of them are on `main` it'll assume that you're trying to see the disaggregations on the first sheet where the `variable` is present. **Be cautious when working with data that has 1 variable present on multiple sheets**  
 - Check if you have any duplicates in your `ID` column  
 - Check if all of the numerics indicated in your `DAF` are actually numeric
-- Check if one of your sheets is names `main`. This is considered standard practice and must be present in your data.
+- Check if one of your sheets is named `main`. This is considered standard practice and must be present in your data.
 
 # Outputs
 
