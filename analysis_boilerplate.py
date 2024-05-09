@@ -61,7 +61,10 @@ for sheet_name in sheets:
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
-daf['variable'] = daf['variable'].apply(lambda x: x.strip())
+# remove spaces
+for column in ['variable','admin','calculation','func','disaggregations']:
+  daf[column] = daf[column].apply(lambda x: x.strip() if isinstance(x, str) else x)
+
 
 wrong_functions = set(daf['func'])-{'mean','numeric','select_one','select_multiple','freq'}
 if len(wrong_functions)>0:
@@ -115,9 +118,8 @@ if daf_numeric.shape[0]>0:
   for i, daf_row in daf_numeric.iterrows():
     res  = is_numeric_dtype(data[daf_row['datasheet']][daf_row['variable']])
     if res == False:
-      raise ValueError(f"Variable {
-                             daf_row['variable']} from datasheet {
-                               daf_row['datasheet']} is not numeric, but you want to apply a mean function to it in your DAF")
+      raise ValueError(f"Variable {daf_row['variable']} from datasheet {\
+        daf_row['datasheet']} is not numeric, but you want to apply a mean function to it in your DAF")
 
 
 print('Checking your filter page and building the filter dictionary')

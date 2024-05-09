@@ -132,8 +132,7 @@ def check_daf_filter(daf, data, filter_daf, tool_survey, tool_choices):
     for row_id, row in merged_daf.iterrows():
         # check that filter variable are in the same sheet in the data
         if row['variable_x'] not in data[row['datasheet']].columns:
-            raise ValueError(f"Filter variable {
-                             row['variable_x']} not found in {row['datasheet']}")
+            raise ValueError(f"Filter variable {row['variable_x']} not found in {row['datasheet']}")
 
         value_type = type(row['value'])
 
@@ -141,13 +140,11 @@ def check_daf_filter(daf, data, filter_daf, tool_survey, tool_choices):
         if row["value"] in tool_survey['name'].tolist():
             # check that the variable is in the same sheet in the data
             if row['value'] not in data[row['datasheet']].columns:
-                raise ValueError(f"Filter value {row['value']} not found in {
-                                 row['datasheet']}")
+                raise ValueError(f"Filter value {row['value']} not found in {row['datasheet']}")
 
             # check that the variable and the value have the same type
             if get_variable_type(data[row['datasheet']], row['variable_x']) != get_variable_type(data[row['datasheet']], row['value']):
-                raise ValueError(f"Variable {row['variable_x']} and {
-                                 row['value']} have different types")
+                raise ValueError(f"Variable {row['variable_x']} and {row['value']} have different types")
 
             # check that the operation is allowed for the type
             if get_variable_type(data[row['datasheet']], row['value']) == 'string':
@@ -191,11 +188,9 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
     for id, row in daf.iterrows():
         if row["variable"] not in data[row["datasheet"]].columns:
             if not resolve:
-                raise ValueError(f"Column {row['variable']} not found in {
-                                 row['datasheet']}")
+                raise ValueError(f"Column {row['variable']} not found in {row['datasheet']}")
             else:
-                print(f"Column {row['variable']} not found in {
-                      row['datasheet']}")
+                print(f"Column {row['variable']} not found in {row['datasheet']}")
                 daf.drop(id, inplace=True)
 
         if row["disaggregations"] not in ["overall", ""] and not pd.isna(row['disaggregations']):
@@ -215,11 +210,9 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
 
         if row["admin"] not in data[row["datasheet"]].columns:
             if not resolve:
-                raise ValueError(f"admin {row['admin']} not found in {
-                                 row['datasheet']} for variable {row['variable']}")
+                raise ValueError(f"admin {row['admin']} not found in {row['datasheet']} for variable {row['variable']}")
             else:
-                print(f"admin {row['admin']} not found in {
-                      row['datasheet']} for variable {row['variable']}")
+                print(f"admin {row['admin']} not found in {row['datasheet']} for variable {row['variable']}")
                 daf.drop(id, inplace=True)
 
     # check if variables exist in more than one sheet
@@ -235,11 +228,9 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
         intersection = sheet_dict[sheet1].intersection(sheet_dict[sheet2])
         if len(intersection) > 0:
             if not resolve:
-                warnings.warn(f"Intersection between {sheet1} and {
-                              sheet2} : {intersection}")
+                warnings.warn(f"Intersection between {sheet1} and {sheet2} : {intersection}")
             else:
-                print(f"Intersection between {sheet1} and {
-                      sheet2} : {intersection}")
+                print(f"Intersection between {sheet1} and {sheet2} : {intersection}")
                 # print("Resolve by removing from DAF the variables that are in both sheets")
                 # daf = daf[~daf['variable'].isin(intersection)]
 
@@ -476,8 +467,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 if disaggregations != []:
                     for j, column_name in enumerate(disaggregations):
-                        new_column_names[column_name] = f'disaggregations_category_{
-                            j+1}'
+                        new_column_names[column_name] = f'disaggregations_category_{j+1}'
 
                 summary_stats_full.rename(
                     columns=new_column_names, inplace=True)
@@ -487,8 +477,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 if disaggregations != []:
                     for j, column_name in enumerate(disaggregations):
-                        summary_stats_full[f'disaggregations_{
-                            j+1}'] = disaggregations[j]
+                        summary_stats_full[f'disaggregations_{j+1}'] = disaggregations[j]
 
                 # option replacer
 
@@ -525,8 +514,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 summary_stats_full['variable'] = daf_final_freq['variable_label'][i]
                 if disaggregations != []:
                     disaggregations_labels = daf_final_freq['disaggregations_label'][i]
-                    summary_stats_full[f'disaggregations_{
-                        j+1}'] = disaggregations_labels
+                    summary_stats_full[f'disaggregations_{j+1}'] = disaggregations_labels
 
                 # add perc
                 summary_stats_full['perc'] = round(
@@ -571,10 +559,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     summary_stats_total['variable'] = daf_final_freq['variable_label'][i]
                     if disaggregations != []:
                         for j, column_name in enumerate(disaggregations):
-                            summary_stats_total[f'disaggregations_{
-                                j+1}'] = 'Total'
-                            summary_stats_total[f'disaggregations_category_{
-                                j+1}'] = 'Total'
+                            summary_stats_total[f'disaggregations_{j+1}'] = 'Total'
+                            summary_stats_total[f'disaggregations_category_{j+1}'] = 'Total'
 
                     summary_stats_full = pd.concat(
                         [summary_stats_full, summary_stats_total], ignore_index=True)
@@ -655,16 +641,14 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 if disaggregations != []:
                     for j, column_name in enumerate(disaggregations):
-                        summary_stats[f'disaggregations_{
-                            j+1}'] = disaggregations[j]
+                        summary_stats[f'disaggregations_{j+1}'] = disaggregations[j]
 
                 # disaggregations category replacer
                 if disaggregations != [] and tool_survey['name'].isin(disaggregations).any():
                     for j, column_name in enumerate(disaggregations):
                         if disaggregations[j] in set(tool_survey['name']):
                             summary_stats = map_names(column_name=f'disaggregations_{j+1}',
-                                                      column_values_name=f'disaggregations_category_{
-                                                          j+1}',
+                                                      column_values_name=f'disaggregations_category_{j+1}',
                                                       summary_table=summary_stats,
                                                       tool_survey=tool_survey,
                                                       tool_choices=tool_choices)
@@ -681,8 +665,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 summary_stats['variable'] = daf_final_num['variable_label'][i]
                 if disaggregations != []:
                     disaggregations_labels = daf_final_num['disaggregations_label'][i]
-                    summary_stats[f'disaggregations_{
-                        j+1}'] = disaggregations_labels
+                    summary_stats[f'disaggregations_{j+1}'] = disaggregations_labels
 
                 if 'add_total' in calc:
                     summary_stats_total = weighted_mean(
@@ -696,10 +679,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     summary_stats_total['variable'] = daf_final_num['variable_label'][i]
                     if disaggregations != []:
                         for j, column_name in enumerate(disaggregations):
-                            summary_stats_total[f'disaggregations_{
-                                j+1}'] = 'Total'
-                            summary_stats_total[f'disaggregations_category_{
-                                j+1}'] = 'Total'
+                            summary_stats_total[f'disaggregations_{j+1}'] = 'Total'
+                            summary_stats_total[f'disaggregations_category_{j+1}'] = 'Total'
 
                     summary_stats = pd.concat(
                         [summary_stats, summary_stats_total], ignore_index=True)
