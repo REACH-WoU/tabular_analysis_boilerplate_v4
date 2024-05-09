@@ -412,7 +412,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             data_temp = data_temp[selected_columns]
             data_temp.loc[:, daf_final_freq['variable'][i]] = data_temp.loc[:, daf_final_freq['variable'][i]].apply(
                 lambda x: re.sub(' +', ' ', x) if isinstance(x, str) else x)
-            if 'include_na' in calc or 'add_total' in calc:
+            if 'include_na' in calc:
                 data_temp.loc[:, daf_final_freq['variable'][i]] = data_temp[daf_final_freq['variable'][i]].fillna(
                     'No_data_available_NA')
                 na_includer = True
