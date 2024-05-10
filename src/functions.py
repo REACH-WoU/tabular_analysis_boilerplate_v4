@@ -363,7 +363,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
     if weight_column == None:
         for sheet in data:
-            data[sheet][weight_column] = 1
+            data[sheet]['weight'] = 1
+        weight_column = 'weight'
 
     daf_final_freq = daf_final[daf_final['func'].isin(
         ['freq', 'select_one', 'select_multiple'])]

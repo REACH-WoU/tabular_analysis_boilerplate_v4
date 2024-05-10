@@ -25,7 +25,7 @@ excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_2.xlsx' # the path to your 
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
-weighting_column = 'weight' # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
+weighting_column = None # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
 
 # end of the input section #
 
@@ -64,6 +64,13 @@ daf = pd.read_excel(excel_path_daf, sheet_name="main")
 # remove spaces
 for column in ['variable','admin','calculation','func','disaggregations']:
   daf[column] = daf[column].apply(lambda x: x.strip() if isinstance(x, str) else x)
+
+
+if any(daf['variable']==daf['disaggregations']):
+  problematic_ids_str = ', '.join(str(id) for id in daf.loc[daf['variable'] == daf['disaggregations'], 'ID'])
+  raise ValueError(f'Variable and disaggregation are duplicated, problematic IDs: ' + \
+    problematic_ids_str)
+
 
 
 wrong_functions = set(daf['func'])-{'mean','numeric','select_one','select_multiple','freq'}
