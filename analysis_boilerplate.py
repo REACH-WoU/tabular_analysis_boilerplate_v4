@@ -160,6 +160,11 @@ if filter_daf.shape[0]>0:
 else:
   filter_dict = {}
 
+
+# Check the weights just in case
+if weighting_column in ['None','none']:
+  weighting_column = None
+
 # Get the disagg tables
 
 print('Building basic tables')
