@@ -199,8 +199,7 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
 
             for disaggregations_item in disaggregations_list:
                 if disaggregations_item not in data[row["datasheet"]].columns:
-                    error_message = f"Disaggregation {disaggregations_item} not found in {
-                        row['datasheet']} for variable {row['variable']}"
+                    error_message = f"Disaggregation {disaggregations_item} not found in {row['datasheet']} for variable {row['variable']}"
                     if not resolve:
                         raise ValueError(error_message)
                     else:
@@ -495,8 +494,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     for j, column_name in enumerate(disaggregations):
                         if disaggregations[j] in set(tool_survey['name']):
                             summary_stats_full = map_names(column_name=f'disaggregations_{j+1}',
-                                                           column_values_name=f'disaggregations_category_{
-                                                               j+1}',
+                                                           column_values_name=f'disaggregations_category_{j+1}',
                                                            summary_table=summary_stats_full,
                                                            tool_survey=tool_survey,
                                                            tool_choices=tool_choices)
@@ -632,8 +630,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 if disaggregations != []:
                     for j, column_name in enumerate(disaggregations):
-                        new_column_names[column_name] = f'disaggregations_category_{
-                            j+1}'
+                        new_column_names[column_name] = f'disaggregations_category_{j+1}'
 
                 summary_stats.rename(columns=new_column_names, inplace=True)
 
