@@ -64,13 +64,13 @@ def load_tool_survey(filename_tool, label_colname, keep_cols=False):
     return tool_survey
 
 
-def map_names(column_name, column_values_name, summary_table, tool_survey, tool_choices, na_include=False):
+def map_names(column_name, column_values_name, summary_table, tool_survey, tool_choices,label_col, na_include=False):
     choices_shortlist = tool_choices[
         tool_choices['list_name'].values == tool_survey[tool_survey['name']
                                                         == summary_table[column_name][0]]['list_name'].values
-    ][['name', 'label::English']]
+    ][['name', label_col]]
     mapping_dict = dict(
-        zip(choices_shortlist['name'], choices_shortlist['label::English']))
+        zip(choices_shortlist['name'], choices_shortlist[label_col]))
     if na_include is True:
         mapping_dict['No_data_available_NA'] = 'No data available (NA)'
     for value in summary_table[column_values_name]:
@@ -95,7 +95,7 @@ def weighted_mean(df, weight_column, numeric_column):
     cum_weights = sorted_df[weight_column].cumsum()
     median_index = np.searchsorted(cum_weights, total_weight / 2.0)
     
-    if cum_weights.iloc[median_index] == total_weight / 2.0:
+    if cum_weights.iloc[median_index] == total_weight / 2.0 or sorted_df.shape[0] == 1:
         weighted_median_result = sorted_df.iloc[median_index][numeric_column]
     else:
         weighted_median_result = sorted_df.iloc[median_index + 1][numeric_column]
@@ -358,7 +358,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
     return workbook
 
 
-def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey, weight_column=None):
+def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey,label_colname, weight_column=None):
 
     if weight_column == None:
         for sheet in data:
@@ -484,6 +484,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 if tool_survey['name'].isin([daf_final_freq.loc[i, 'variable']]).any():
                     summary_stats_full = map_names(column_name='variable',
                                                    column_values_name='option',
+                                                   label_col = label_colname,
                                                    summary_table=summary_stats_full,
                                                    tool_survey=tool_survey,
                                                    tool_choices=tool_choices,
@@ -496,6 +497,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                             summary_stats_full = map_names(column_name=f'disaggregations_{j+1}',
                                                            column_values_name=f'disaggregations_category_{j+1}',
                                                            summary_table=summary_stats_full,
+                                                           label_col = label_colname,
                                                            tool_survey=tool_survey,
                                                            tool_choices=tool_choices)
 
@@ -505,6 +507,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     summary_stats_full = map_names(column_name='admin',
                                                    column_values_name='admin_category',
                                                    summary_table=summary_stats_full,
+                                                   label_col = label_colname,
                                                    tool_survey=tool_survey,
                                                    tool_choices=tool_choices)
 
@@ -551,6 +554,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         summary_stats_total = map_names(column_name='variable',
                                                         column_values_name='option',
                                                         summary_table=summary_stats_total,
+                                                        label_col = label_colname,
                                                         tool_survey=tool_survey,
                                                         tool_choices=tool_choices,
                                                         na_include=na_includer)
@@ -647,6 +651,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         if disaggregations[j] in set(tool_survey['name']):
                             summary_stats = map_names(column_name=f'disaggregations_{j+1}',
                                                       column_values_name=f'disaggregations_category_{j+1}',
+                                                      label_col = label_colname,
                                                       summary_table=summary_stats,
                                                       tool_survey=tool_survey,
                                                       tool_choices=tool_choices)
@@ -655,6 +660,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 if tool_survey['name'].isin([daf_final_num.loc[i, 'admin']]).any():
                     summary_stats = map_names(column_name='admin',
                                               column_values_name='admin_category',
+                                              label_col = label_colname,
                                               summary_table=summary_stats,
                                               tool_survey=tool_survey,
                                               tool_choices=tool_choices)

@@ -169,7 +169,7 @@ if weighting_column in ['None','none']:
 print('Building basic tables')
 daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
 daf_final['q.type']=daf_final['q.type'].fillna('select_one')
-disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, weight_column =weighting_column)
+disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, label_colname = label_colname, weight_column =weighting_column)
 
 
 disaggregations_perc = deepcopy(disaggregations_full)
