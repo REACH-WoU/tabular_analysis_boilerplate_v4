@@ -25,7 +25,7 @@ excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_2.xlsx' # the path to your 
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
-weighting_column = None # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
+weighting_column = 'weight' # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
 
 # end of the input section #
 
@@ -172,24 +172,58 @@ daf_final['q.type']=daf_final['q.type'].fillna('select_one')
 disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, label_colname = label_colname, weight_column =weighting_column)
 
 
-disaggregations_perc = deepcopy(disaggregations_full)
-disaggregations_count = deepcopy(disaggregations_full)
+disaggregations_orig = deepcopy(disaggregations_full) # analysis key table
+
+for element in disaggregations_full:
+  if isinstance(element[0], pd.DataFrame):  
+    if all(column in element[0].columns for column in element[0].columns if column.endswith('orig')):
+      element[0].drop(columns=[col for col in  element[0].columns if col.endswith('orig')], inplace=True)
+
+disaggregations_perc = deepcopy(disaggregations_full) # percentage table
+disaggregations_count = deepcopy(disaggregations_full) # count table
+disaggregations_count_w = deepcopy(disaggregations_full) # weighted count table
 
 # remove counts prom perc table
 for element in disaggregations_perc:
-    if isinstance(element[0], pd.DataFrame):  
-        if all(column in element[0].columns for column in ['category_count','weighted_count']):
-          element[0].drop(columns=['category_count','weighted_count'], inplace=True)
+  if isinstance(element[0], pd.DataFrame):  
+    if all(column in element[0].columns for column in ['category_count','weighted_count']):
+      element[0].drop(columns=['category_count','weighted_count','unweighted_count'], inplace=True)
 
-# remove perc columns from count table
+# remove perc columns from weighted count table
+for element in disaggregations_count_w:
+  if isinstance(element[0], pd.DataFrame):  
+    if all(column in element[0].columns for column in ['perc']):
+      element[0].drop(columns=['perc','unweighted_count'], inplace=True)
+    element[0].rename(columns={'weighted_count': 'category_count'}, inplace=True)
+          
+# remove perc columns from unweighted count table
 for element in disaggregations_count:
-    if isinstance(element[0], pd.DataFrame):  
-        if all(column in element[0].columns for column in ['perc']):
-          element[0].drop(columns=['perc'], inplace=True)
+  if isinstance(element[0], pd.DataFrame):  
+    if all(column in element[0].columns for column in ['perc']):
+      element[0].drop(columns=['perc','weighted_count'], inplace=True)
+    element[0].rename(columns={'unweighted_count': 'category_count'}, inplace=True)
 
 
-##Get the dashboard inputs
+# Get the columns for Analysis key table 
+concatenated_df_orig = pd.concat([tpl[0] for tpl in disaggregations_orig], ignore_index = True)
+concatenated_df_orig = concatenated_df_orig[(concatenated_df_orig['admin'] != 'Total') & (concatenated_df_orig['disaggregations_category_1'] != 'Total')]
 
+disagg_columns_og = [col for col in concatenated_df_orig.columns if col.startswith('disaggregations') and not col.endswith('orig')]
+ls_orig = ['admin','admin_category','option', 'variable']+disagg_columns_og
+
+for column in ls_orig:
+  if column+'_orig' not in concatenated_df_orig.columns:
+   concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column]
+  concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column+'_orig'].fillna(concatenated_df_orig[column])
+
+concatenated_df_orig['perc'] = concatenated_df_orig['perc'].fillna(concatenated_df_orig['mean'])
+concatenated_df_orig = concatenated_df_orig.merge(daf_final[['ID','q.type']], on='ID', how='left')
+
+concatenated_df_orig['key'] = concatenated_df_orig.apply(key_creator, axis=1)
+concatenated_df_orig['perc'] = concatenated_df_orig['perc'].fillna(concatenated_df_orig['mean'])
+concatenated_df_orig=concatenated_df_orig[['key','perc']]
+
+# prepare dashboard inputs 
 concatenated_df = pd.concat([tpl[0] for tpl in disaggregations_perc], ignore_index = True)
 concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total') & (concatenated_df['disaggregations_category_1'] != 'Total')]
 
@@ -267,13 +301,17 @@ print('Writing files')
 filename = research_cycle+'_'+id_round+'_'+date
 
 filename_dash = 'output/'+filename+'_dashboard.xlsx'
+filename_key = 'output/'+filename+'_analysis_key.xlsx'
 filename_toc = 'output/'+filename+'_TOC.xlsx'
-filename_toc_count = 'output/'+filename+'_TOC_count.xlsx'
+filename_toc_count = 'output/'+filename+'_TOC_count_unweighted.xlsx'
+filename_toc_count_w = 'output/'+filename+'_TOC_count_weighted.xlsx'
 filename_wide_toc = 'output/'+filename+'_wide_TOC.xlsx'
 
 
 construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False)
+construct_result_table(disaggregations_count_w, filename_toc_count_w,make_pivot_with_strata = False)
 construct_result_table(disaggregations_count, filename_toc_count,make_pivot_with_strata = False)
 construct_result_table(disaggregations_perc_new, filename_wide_toc,make_pivot_with_strata = True)
 concatenated_df.to_excel(filename_dash, index=False)
+concatenated_df_orig.to_excel(filename_key, index=False)
 print('All done. congratulations')

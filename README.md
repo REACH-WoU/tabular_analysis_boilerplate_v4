@@ -100,7 +100,8 @@ The script goes through the following checks:
 # Outputs
 
 The script will produce the following tables:
-- TOC table - identical to the V3's TOC table
-- TOC table count - same as above, but with counts instead of percentages
-- TOC table wide - Same as the above table but pivoted by the admin variable to produce wider tables for more geographically inclined DAF files
-- Dashboard input table - a table that is designed to be a better fit for dashboards that require a multivariate frequency table input
+- TOC table - identical to the V3's TOC table  
+- TOC table weighted/unweighted count - same as above, but with weighted/unweighted counts instead of percentages  
+- TOC table wide - Same as the above table but pivoted by the admin variable to produce wider tables for more geographically inclined DAF files  
+- Analysis key table - A long table with the standardized output format for easy HQ validation  
+- Dashboard input table - a table that is designed to be a better fit for dashboards that require a multivariate frequency table input  

@@ -78,6 +78,7 @@ def map_names(column_name, column_values_name, summary_table, tool_survey, tool_
             mapping_dict[value] = value
     # None breaks everything. Trying to change it
     mapping_dict['none'] = 'None '
+    summary_table[column_values_name+'_orig']=summary_table[column_values_name].copy()
     summary_table[column_values_name] = summary_table[column_values_name].map(
         mapping_dict)
     return summary_table
@@ -271,10 +272,10 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
         table, ID, label = element
         if "perc" in table.columns:
             values_variable = "perc"
-        elif 'category_count' in table.columns:
-            values_variable = "category_count"
+        elif 'mean' in table.columns:
+            values_variable = "mean"
         else:
-            values_variable = 'mean'
+            values_variable = 'category_count'
         if values_variable == "perc" or values_variable == 'category_count':
             if 'disaggregations_category_1' in table.columns:
                 pivot_columns = ["disaggregations_category_1"]
@@ -284,8 +285,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
             missed_cols = set(columns).difference(['disaggregations_category_1'])
             if len(missed_cols)>0:
                 pivot_columns.extend(list(missed_cols))
-            if 'weighted_count' in table.columns:
-                pivot_columns.append('weighted_count')
+            if 'general_count' in table.columns:
+                pivot_columns.append('general_count')
                 
             if make_pivot_with_strata:
                 if table['admin_category'].isin(['Total']).any():
@@ -304,7 +305,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                         table, pivot_columns + ["option"], ["admin_category"], values_variable)
             else:
                 pivot_table = make_pivot(
-                    table, pivot_columns + ["admin_category", "count"], ["option"], values_variable)
+                    table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
 
@@ -326,13 +327,11 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
             if values_variable == "perc":
                 row_id = data_sheet.max_row + 1
                 for i, value in enumerate(row):
+                    cell = data_sheet.cell(row=row_id, column=i + 1)
+                    cell.value = value
                     if isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value):
-                        cell = data_sheet.cell(row=row_id, column=i + 1)
-                        cell.value = value
-                        cell.number_format = '0.00%'
-                    else:
-                        cell = data_sheet.cell(row=row_id, column=i + 1)
-                        cell.value = value
+                        if value <= 1:
+                            cell.number_format = '0.00%'
             else:
                 data_sheet.append(list(row))
         data_sheet.append([])
@@ -442,7 +441,9 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     disaggregations+[daf_final_freq['variable'][i]]
 
                 summary_stats = data_temp.groupby(groupby_columns)[
-                    weight_column].agg(['sum'])
+                    weight_column].agg(['sum', 'count'])
+                summary_stats.rename(
+                    columns={'count': 'unweighted_count'}, inplace=True)
                 # get the same stats but for the full subsample (not calculating option samples)
                 groupby_columns_ov = [
                     daf_final_freq['admin'][i]]+disaggregations
@@ -455,7 +456,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 # rename them
                 summary_stats.rename(
-                    columns={'sum': 'category_count'}, inplace=True)
+                    columns={'sum': 'weighted_count'}, inplace=True)
                 summary_stats_var_om.rename(
                     columns={'sum': 'general_count'}, inplace=True)
 
@@ -489,9 +490,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                    tool_survey=tool_survey,
                                                    tool_choices=tool_choices,
                                                    na_include=na_includer)
-
                 # disaggregations category replacer
-                if disaggregations != [] and tool_survey['name'].isin(disaggregations).any():
+                if disaggregations != []:
                     for j, column_name in enumerate(disaggregations):
                         if disaggregations[j] in set(tool_survey['name']):
                             summary_stats_full = map_names(column_name=f'disaggregations_{j+1}',
@@ -500,9 +500,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                            label_col = label_colname,
                                                            tool_survey=tool_survey,
                                                            tool_choices=tool_choices)
-
+                
                 # admin category replacer
-
                 if tool_survey['name'].isin([daf_final_freq.loc[i, 'admin']]).any():
                     summary_stats_full = map_names(column_name='admin',
                                                    column_values_name='admin_category',
@@ -511,32 +510,35 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                    tool_survey=tool_survey,
                                                    tool_choices=tool_choices)
 
+                
                 # add proper labels
-
+                summary_stats_full['variable_orig'] = summary_stats_full['variable']
                 summary_stats_full['variable'] = daf_final_freq['variable_label'][i]
                 if disaggregations != []:
-                    disaggregations_labels = daf_final_freq['disaggregations_label'][i]
-                    summary_stats_full[f'disaggregations_{j+1}'] = disaggregations_labels
+                    for j, column_name in enumerate(disaggregations):
+                        disaggregations_labels = daf_final_freq['disaggregations_label'][i]
+                        summary_stats_full[f'disaggregations_{j+1}_orig'] = summary_stats_full[f'disaggregations_{j+1}']
+                        summary_stats_full[f'disaggregations_{j+1}'] = disaggregations_labels
 
                 # add perc
                 summary_stats_full['perc'] = round(
-                    summary_stats_full['category_count']/summary_stats_full['general_count'], 4)
+                    summary_stats_full['weighted_count']/summary_stats_full['general_count'], 4)
 
-                summary_stats_full['category_count'] = summary_stats_full['category_count'].round()
-                summary_stats_full.rename(columns={'general_count': 'weighted_count'}, inplace=True)
                 summary_stats_full['weighted_count'] = summary_stats_full['weighted_count'].round()
+                summary_stats_full['general_count'] = summary_stats_full['general_count'].round()
 
                 if 'add_total' in calc:
                     summary_stats_total = data_temp.groupby(daf_final_freq['variable'][i])[
-                        weight_column].agg(['sum'])  # remove count here bruh
+                        weight_column].agg(['sum','count'])  
+                    summary_stats_total.rename(
+                        columns={'count': 'unweighted_count'}, inplace=True)
                     summary_stats_total.reset_index(inplace=True)
                     # sometimes weights are wonky. so we're accounting for that
                     summary_stats_total['perc'] = round(
                         summary_stats_total['sum']/data_temp_backup[weight_column].sum(), 4)
-                    summary_stats_total['category_count'] = summary_stats_total['sum'].copy().round()
-                    summary_stats_total['weighted_count'] = data_temp_backup[weight_column].sum().round()
+                    summary_stats_total['weighted_count'] = summary_stats_total['sum'].copy().round()
                     # add count (n of non-na rows)
-                    summary_stats_total['count'] = data_temp_backup.shape[0]
+                    summary_stats_total['general_count'] = data_temp_backup.shape[0]
                     # drom the sum column
                     summary_stats_total.drop(columns=['sum'], inplace=True)
 
@@ -558,7 +560,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                         tool_survey=tool_survey,
                                                         tool_choices=tool_choices,
                                                         na_include=na_includer)
-
+                    summary_stats_total['variable_orig'] = summary_stats_total['variable']
                     summary_stats_total['variable'] = daf_final_freq['variable_label'][i]
                     if disaggregations != []:
                         for j, column_name in enumerate(disaggregations):
@@ -578,11 +580,15 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         ' on the admin of '+daf_final_freq.iloc[i]['admin']
 
                 disagg_columns = [
-                    col for col in summary_stats_full.columns if col.startswith('disaggregations')]
+                    col for col in summary_stats_full.columns if col.startswith('disaggregations') and not col.endswith('orig')]
+                
+                og_columns = [
+                    col for col in summary_stats_full.columns if col.endswith('orig')]
                 summary_stats_full['ID'] = daf_final_freq.iloc[i]['ID']
                 summary_stats_full['total_count_perc'] = round((summary_stats_full['full_count']/total_nrow)*100,2)
                 columns = ['ID', 'admin', 'admin_category', 'option',
-                            'variable'] + disagg_columns + ['category_count','weighted_count','perc','count', 'full_count','total_count_perc']
+                            'variable'] + disagg_columns + ['weighted_count','unweighted_count','perc',
+                                                            'general_count', 'full_count','total_count_perc']+ og_columns
                     
                 summary_stats_full = summary_stats_full[columns]
                 df_list.append(
@@ -666,10 +672,13 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                               tool_choices=tool_choices)
 
                 # add proper labels
+                summary_stats['variable_orig'] = summary_stats['variable']
                 summary_stats['variable'] = daf_final_num['variable_label'][i]
                 if disaggregations != []:
-                    disaggregations_labels = daf_final_num['disaggregations_label'][i]
-                    summary_stats[f'disaggregations_{j+1}'] = disaggregations_labels
+                    for j, column_name in enumerate(disaggregations):
+                        disaggregations_labels = daf_final_num['disaggregations_label'][i]
+                        summary_stats[f'disaggregations_{j+1}_orig'] = summary_stats[f'disaggregations_{j+1}']
+                        summary_stats[f'disaggregations_{j+1}'] = disaggregations_labels
 
                 if 'add_total' in calc:
                     summary_stats_total = weighted_mean(
@@ -679,7 +688,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     summary_stats_total['admin'] = 'Total'
                     summary_stats_total['admin_category'] = 'Total'
                     summary_stats_total['variable'] = daf_final_num['variable'][i]
-
+                    
+                    summary_stats_total['variable_orig'] = summary_stats_total['variable']
                     summary_stats_total['variable'] = daf_final_num['variable_label'][i]
                     if disaggregations != []:
                         for j, column_name in enumerate(disaggregations):
@@ -690,6 +700,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         [summary_stats, summary_stats_total], ignore_index=True)
 
                 summary_stats['full_count'] = mean_count
+                summary_stats.rename(columns = {'count' : 'weighted_count'}, inplace = True)
                 if disaggregations != []:
                     label = daf_final_num.iloc[i]['variable']+' broken down by ' + \
                         daf_final_num.iloc[i]['disaggregations'] + \
@@ -698,13 +709,28 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     label = daf_final_num.iloc[i]['variable'] + \
                         ' on the admin of '+daf_final_num.iloc[i]['admin']
                 summary_stats['total_count_perc'] = round((summary_stats['full_count']/total_nrow)*100,2)
+                
+                og_columns = [
+                    col for col in summary_stats.columns if col.endswith('orig')]
                 disagg_columns = [
-                    col for col in summary_stats.columns if col.startswith('disaggregations')]
+                    col for col in summary_stats.columns if col.startswith('disaggregations') and not col.endswith('orig')]
                 summary_stats['ID'] = daf_final_num.iloc[i]['ID']
                 columns = ['ID', 'admin', 'admin_category', 'variable'] + \
                     disagg_columns + ['mean', 'median','min',
-                                      'max', 'count', 'full_count','total_count_perc']
+                                      'max', 'weighted_count', 'full_count','total_count_perc']+og_columns
                 summary_stats = summary_stats[columns]
 
                 df_list.append((summary_stats, daf_final_num['ID'][i], label))
     return (df_list)
+
+def key_creator(row):
+  bit_1_gen = 'prop_'+row['q.type'] if row['q.type'] in ['select_one','select_multiple']  else 'mean'
+  bit_2_option = '' if pd.isna(row['option_orig']) else f"%/%{row['option_orig']}"
+  bit_3_admin = '@/@'+ row['admin_orig'] + '%/%' + row['admin_category_orig']
+  
+  cat_dem = [col for col in row.index if 'disaggregations_category' in col and col.endswith('orig')]
+  cat_basic = [col for col in row.index if 'category' not in col and col.endswith('orig') and col.startswith('disaggregations')]
+  
+  combined_disaggs = [f"{row[basic]}%/%{row[dem]}" for basic, dem in zip(cat_basic, cat_dem) if not pd.isna(row[basic]) and not pd.isna(row[dem])]
+  bit_4_disaggs = '-/-'.join(combined_disaggs)
+  return bit_1_gen +'@/@' +row['variable_orig'] + bit_2_option + bit_3_admin + '-/-'+bit_4_disaggs
