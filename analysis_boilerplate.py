@@ -138,14 +138,17 @@ if filter_daf.shape[0]>0:
   filter_dict = {}
   # Iterate over DataFrame rows
   for index, row in filter_daf_full.iterrows():
+    # If the value is another variable, don't use the string bit for it
     if isinstance(row['value'], str) and row['value'] in data[row['datasheet']].columns:
-      # If the value is another variable, don't use the string bit for it
       condition_str = f"(data['{row['datasheet']}']['{row['variable']}'] {row['operation']} data['{row['datasheet']}']['{row['value']}'])"
-    elif isinstance(row['value'], str):
-      # If the value is a string add quotes
+    # If the value is a string and is equal
+    elif isinstance(row['value'], str) and row['operation']=='==':
       condition_str = f"(data['{row['datasheet']}']['{row['variable']}'].astype(str).str.contains('{row['value']}', regex=True))"
+    # If the value is a string and is not equal
+    elif isinstance(row['value'], str) and row['operation']=='!=':
+      condition_str = f"(~data['{row['datasheet']}']['{row['variable']}'].astype(str).str.contains('{row['value']}', regex=True))"
+    # Otherwise just keep as is
     else:
-      # Otherwise just keep as is
       condition_str = f"(data['{row['datasheet']}']['{row['variable']}'] {row['operation']} {row['value']})"
     if row['ID'] in filter_dict:
       filter_dict[row['ID']].append(condition_str)
@@ -309,7 +312,8 @@ filename_wide_toc = 'output/'+filename+'_wide_TOC.xlsx'
 
 
 construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False)
-construct_result_table(disaggregations_count_w, filename_toc_count_w,make_pivot_with_strata = False)
+if weighting_column != None:
+  construct_result_table(disaggregations_count_w, filename_toc_count_w,make_pivot_with_strata = False)
 construct_result_table(disaggregations_count, filename_toc_count,make_pivot_with_strata = False)
 construct_result_table(disaggregations_perc_new, filename_wide_toc,make_pivot_with_strata = True)
 concatenated_df.to_excel(filename_dash, index=False)

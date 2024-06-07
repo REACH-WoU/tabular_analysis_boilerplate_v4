@@ -123,7 +123,7 @@ def check_daf_filter(daf, data, filter_daf, tool_survey, tool_choices):
     merged_daf = merged_daf.drop(
         ['calculation', 'join', 'disaggregations'], axis=1)
     # check if rows contain NaN
-    if merged_daf.isnull().values.any():
+    if filter_daf.isnull().values.any():
         raise ValueError("Some rows in the filter sheet contain NaN")
 
     # check IDs consistency
