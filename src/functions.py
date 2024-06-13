@@ -607,6 +607,16 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 disaggregations = [s.replace(" ", "") for s in disaggregations]
             else:
                 disaggregations = []
+                
+            if not pd.isna(daf_final_num.iloc[i]['calculation']):
+                # break down the calculations
+                if ' ' in daf_final_num.iloc[i]['calculation']:
+                    calc = daf_final_num.iloc[i]['calculation'].split(',')
+                else:
+                    calc = [daf_final_num.iloc[i]['calculation']]
+                calc = [x.strip(' ') for x in calc]
+            else:
+                calc = 'None'
 
             # get the correct sheet & add filters
             if daf_final_num.iloc[i]['ID'] in filter_dictionary.keys():
