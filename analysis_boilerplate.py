@@ -21,7 +21,7 @@ parquet_inputs = True # Whether you've transformed your data into a parquet inpu
 excel_path_data = 'data/test_frame.xlsx' # path to your excel datafile (you may leave it blank if working with parquet inputs)
 parquet_path_data = 'data/parquet_inputs/' # path to your parquet datafiles (you may leave it blank if working with excel input)
 
-excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_2.xlsx' # the path to your DAF file
+excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx' # the path to your DAF file
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
@@ -215,15 +215,22 @@ disagg_columns_og = [col for col in concatenated_df_orig.columns if col.startswi
 ls_orig = ['admin','admin_category','option', 'variable']+disagg_columns_og
 
 for column in ls_orig:
-  if column+'_orig' not in concatenated_df_orig.columns:
-   concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column]
-  concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column+'_orig'].fillna(concatenated_df_orig[column])
+  if column in concatenated_df_orig.columns:
+    if column+'_orig' not in concatenated_df_orig.columns:
+      concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column]
+    concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column+'_orig'].fillna(concatenated_df_orig[column])
 
-concatenated_df_orig['perc'] = concatenated_df_orig['perc'].fillna(concatenated_df_orig['mean'])
+
 concatenated_df_orig = concatenated_df_orig.merge(daf_final[['ID','q.type']], on='ID', how='left')
 
 concatenated_df_orig['key'] = concatenated_df_orig.apply(key_creator, axis=1)
-concatenated_df_orig['perc'] = concatenated_df_orig['perc'].fillna(concatenated_df_orig['mean'])
+
+if 'mean' in concatenated_df_orig.columns:
+  if 'perc' in concatenated_df_orig.columns:
+    concatenated_df_orig['perc'] = concatenated_df_orig['perc'].fillna(concatenated_df_orig['mean'])
+  else:
+    concatenated_df_orig['perc'] = concatenated_df_orig['mean']
+
 concatenated_df_orig=concatenated_df_orig[['key','perc']]
 
 # prepare dashboard inputs 

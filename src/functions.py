@@ -276,18 +276,17 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
             values_variable = "mean"
         else:
             values_variable = 'category_count'
+        if 'disaggregations_category_1' in table.columns:
+            pivot_columns = ["disaggregations_category_1"]
+        else:
+            pivot_columns = []
+            
+        columns = [x for x in table.columns if ('disaggregations_category_' in x)]
+        missed_cols = set(columns).difference(['disaggregations_category_1'])
+        if len(missed_cols)>0:
+            pivot_columns.extend(list(missed_cols))
+            
         if values_variable == "perc" or values_variable == 'category_count':
-            if 'disaggregations_category_1' in table.columns:
-                pivot_columns = ["disaggregations_category_1"]
-            else:
-                pivot_columns = []
-            columns = [x for x in table.columns if ('disaggregations_category_' in x)]
-            missed_cols = set(columns).difference(['disaggregations_category_1'])
-            if len(missed_cols)>0:
-                pivot_columns.extend(list(missed_cols))
-            if 'general_count' in table.columns:
-                pivot_columns.append('general_count')
-                
             if make_pivot_with_strata:
                 if table['admin_category'].isin(['Total']).any():
                     table_dirty = table[table['admin_category'] == 'Total']
@@ -304,20 +303,29 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                     pivot_table = make_pivot(
                         table, pivot_columns + ["option"], ["admin_category"], values_variable)
             else:
+                if 'general_count' in table.columns:
+                    pivot_columns.append('general_count')
+                    
                 pivot_table = make_pivot(
                     table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
 
         else:
-            #   if 'disaggregations_category_1' in table.columns:
-            #       pivot_columns = ["disaggregations_category_1"]
-            #       if "disaggregations_category_2" in table.columns:
-            #           pivot_columns.append("disaggregations_category_2")
-            #   else:
-            #     pivot_columns = []
-            pivot_table = table
-            # pivot_table = make_pivot(table, pivot_columns, ["admin_category"], values_variable)
+            if make_pivot_with_strata:
+                # add numeric columns as a single one
+                table = table.reset_index()
+                ids = pivot_columns+['ID','admin_category']
+                table = pd.melt(table, id_vars=ids, value_vars=['median', 'mean', 'max','min'])
+                # add new columns to pivot
+                values_variable = 'value'
+                pivot_columns = pivot_columns +['variable']
+                pivot_table = make_pivot(table, pivot_columns, ["admin_category"], values_variable)
+            else:
+                # if it's just a regular table - remove excessive information
+                cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc']
+                cols_to_keep = set(table.columns).difference(cols_to_drop)
+                pivot_table = table[list(cols_to_keep)]
 
         cell_id = f"A{link_idx}"
         link_idx += len(pivot_table) + 3
@@ -734,13 +742,16 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
     return (df_list)
 
 def key_creator(row):
-  bit_1_gen = 'prop_'+row['q.type'] if row['q.type'] in ['select_one','select_multiple']  else 'mean'
-  bit_2_option = '' if pd.isna(row['option_orig']) else f"%/%{row['option_orig']}"
-  bit_3_admin = '@/@'+ row['admin_orig'] + '%/%' + row['admin_category_orig']
+    bit_1_gen = 'prop_'+row['q.type'] if row['q.type'] in ['select_one','select_multiple']  else 'mean'
+    if 'option_orig' in row.keys():
+      bit_2_option = '' if pd.isna(row['option_orig']) else f"%/%{row['option_orig']}"
+    else:
+        bit_2_option = 'mean'
+    bit_3_admin = '@/@'+ row['admin_orig'] + '%/%' + row['admin_category_orig']
   
-  cat_dem = [col for col in row.index if 'disaggregations_category' in col and col.endswith('orig')]
-  cat_basic = [col for col in row.index if 'category' not in col and col.endswith('orig') and col.startswith('disaggregations')]
-  
-  combined_disaggs = [f"{row[basic]}%/%{row[dem]}" for basic, dem in zip(cat_basic, cat_dem) if not pd.isna(row[basic]) and not pd.isna(row[dem])]
-  bit_4_disaggs = '-/-'.join(combined_disaggs)
-  return bit_1_gen +'@/@' +row['variable_orig'] + bit_2_option + bit_3_admin + '-/-'+bit_4_disaggs
+    cat_dem = [col for col in row.index if 'disaggregations_category' in col and col.endswith('orig')]
+    cat_basic = [col for col in row.index if 'category' not in col and col.endswith('orig') and col.startswith('disaggregations')]
+    
+    combined_disaggs = [f"{row[basic]}%/%{row[dem]}" for basic, dem in zip(cat_basic, cat_dem) if not pd.isna(row[basic]) and not pd.isna(row[dem])]
+    bit_4_disaggs = '-/-'.join(combined_disaggs)
+    return bit_1_gen +'@/@' +row['variable_orig'] + bit_2_option + bit_3_admin + '-/-'+bit_4_disaggs
