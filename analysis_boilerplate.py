@@ -167,6 +167,14 @@ else:
 if weighting_column in ['None','none']:
   weighting_column = None
 
+# Chekc if there's an issue with any of the weights
+if weighting_column is not None:
+  for sheet_name in sheets:
+    if data[sheet_name][weighting_column].isnull().sum().any():
+      raise ValueError(f"The weight column in sheet {sheet_name} contains NAs please fix this")
+  
+
+
 # Get the disagg tables
 
 print('Building basic tables')
