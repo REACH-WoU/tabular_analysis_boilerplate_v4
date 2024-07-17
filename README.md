@@ -82,6 +82,7 @@ Prior to running the script please fill in:
  - The relevant relative paths and names of your Data, Kobo tool and DAF files in rows
  - The name of your label column **Must be identical in Kobo tool and survey sheets!!**
  - The name of your weight column. If you don't have one, write `None` in this line.
+ - Whether you want to run a significance check for all tables. This argument will cause the script to perform variance analysis on your tables where applicable.
  - If you want to add any new variables not present in the data, please do so in the block that starts on line 49 (data transformation section), please note that the new variables will be assigned a frequency type of `select_one` if they are not present in the Kobo tool.
 
 ## Checks

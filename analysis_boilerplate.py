@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from copy import deepcopy
 
+
 # set up your working directory
 os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
 
@@ -26,6 +27,8 @@ excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # 
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
 weighting_column = 'weight' # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
+
+sign_check = True # should the script check the significance of the tables?
 
 # end of the input section #
 
@@ -56,6 +59,7 @@ tool_survey = load_tool_survey(filename_tool = excel_path_tool,label_colname=lab
 # add the Overall column to your data
 for sheet_name in sheets:
   data[sheet_name]['overall'] =' Overall'
+  data[sheet_name]['Overall'] =' Overall'
 
 
 # check DAF for potential issues
@@ -180,7 +184,7 @@ if weighting_column is not None:
 print('Building basic tables')
 daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
 daf_final['q.type']=daf_final['q.type'].fillna('select_one')
-disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, label_colname = label_colname, weight_column =weighting_column)
+disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, label_colname = label_colname, check_significance= sign_check, weight_column =weighting_column)
 
 
 disaggregations_orig = deepcopy(disaggregations_full) # analysis key table
@@ -309,8 +313,13 @@ if pd.notna(daf_final['join']).any():
 
     parent_index_f = parent_tupple[0][1][1]
     parent_label_f = str(child_tupple[0][1][2]).split()[0]+' & '+ str(parent_tupple[0][1][2])
+    if str(child_tupple[0][1][3]) != '':
+      parent_sig_f = str(child_tupple[0][1][3])+' & '+ str(parent_tupple[0][1][3])
+    else:
+      parent_sig_f = ''
 
-    new_list = (parent_tupple_data,parent_index_f,parent_label_f)
+    new_list = (parent_tupple_data,parent_index_f,parent_label_f,parent_sig_f)
+
     disaggregations_perc_new[parent_tupple_index] = new_list
     del disaggregations_perc_new[child_tupple_index]
 

@@ -4,6 +4,8 @@ import re
 from itertools import combinations
 from openpyxl.styles import PatternFill, Font
 from openpyxl import Workbook
+from scipy.stats import chi2_contingency
+from statsmodels.formula.api import ols
 import warnings
 warnings.filterwarnings(
     "ignore", 'This pattern is interpreted as a regular expression, and has match groups.')
@@ -83,6 +85,22 @@ def map_names(column_name, column_values_name, summary_table, tool_survey, tool_
         mapping_dict)
     return summary_table
 
+
+def map_names_ls(column_name, values_list, tool_survey, tool_choices,label_col, na_include=False):
+    choices_shortlist = tool_choices[
+        tool_choices['list_name'].values == tool_survey[tool_survey['name']== column_name]['list_name'].values
+    ][['name', label_col]]
+    mapping_dict = dict(
+        zip(choices_shortlist['name'], choices_shortlist[label_col]))
+    if na_include is True:
+        mapping_dict['No_data_available_NA'] = 'No data available (NA)'
+    for value in values_list:
+        if value not in mapping_dict:
+            mapping_dict[value] = value
+    # None breaks everything. Trying to change it
+    mapping_dict['none'] = 'None '
+    values_list = [mapping_dict.get(value, value) for value in values_list]
+    return values_list
 
 def weighted_mean(df, weight_column, numeric_column):
     weighted_sum = (df[numeric_column] * df[weight_column]).sum()
@@ -266,12 +284,14 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
     link_idx = 1
 
     # add columns in the content sheet
-    content_sheet.append(["ID", "Link"])
+    content_sheet.append(["ID", "Link","Significance"])
 
     for idx, element in enumerate(tables_list):
-        table, ID, label = element
+        table, ID, label, significance = element
         if "perc" in table.columns:
             values_variable = "perc"
+        elif any([x.startswith('perc_') for x in table.columns]):
+            values_variable = [x for x in table.columns if x.startswith('perc_')]
         elif 'mean' in table.columns:
             values_variable = "mean"
         else:
@@ -310,8 +330,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                     table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
-
-        else:
+        elif values_variable =='mean':
             if make_pivot_with_strata:
                 # add numeric columns as a single one
                 table = table.reset_index()
@@ -326,7 +345,11 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                 cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc']
                 cols_to_keep = set(table.columns).difference(cols_to_drop)
                 pivot_table = table[list(cols_to_keep)]
-
+        else:
+            cols_to_keep = [x for x in table.columns if 'category' in x]+['option']+\
+                [x for x in table.columns if x.startswith('perc_')]+[x for x in table.columns if x.endswith('_count')]
+            pivot_table = table[cols_to_keep]
+            
         cell_id = f"A{link_idx}"
         link_idx += len(pivot_table) + 3
         data_sheet.append([label])
@@ -344,10 +367,16 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                 data_sheet.append(list(row))
         data_sheet.append([])
 
-        text_on_link = label + ' ' + values_variable
+        if isinstance(values_variable,list):
+            link_value = ', '.join(values_variable)
+        else:
+            link_value = values_variable
+            
+        text_on_link = label + ' ' + link_value
         link_text = f'=HYPERLINK("#\'Data\'!{cell_id}", "{text_on_link}")'
         content_sheet.cell(row=idx + 2, column=2, value=link_text)
         content_sheet.cell(row=idx + 2, column=1, value=ID)
+        content_sheet.cell(row=idx + 2, column=3, value=significance)
 
     for col_idx, column in enumerate(data_sheet.columns, 1):
         if col_idx == 1:
@@ -365,7 +394,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
     return workbook
 
 
-def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey,label_colname, weight_column=None):
+def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey,label_colname, check_significance, weight_column=None):
 
     if weight_column == None:
         for sheet in data:
@@ -447,7 +476,57 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 groupby_columns = [daf_final_freq['admin'][i]] + \
                     disaggregations+[daf_final_freq['variable'][i]]
+                # check significance if such was specified
+                if check_significance ==True:
+                    special_mapping = False
+                    # check different cases of dependence              
+                    if len(disaggregations)>0:
+                        independent_variables = disaggregations
+                        admin_variable = daf_final_freq['admin'][i]
+                    elif len(disaggregations)==0 and daf_final_freq['admin'][i] not in ['Overall','overall']:
+                        independent_variables = daf_final_freq['admin'][i]
+                        admin_variable = 'overall'
+                        special_mapping= True
+                    else:
+                        independent_variables = None
+                        admin_variable = 'overall'
+                    
+                    admin_ls = data_temp[admin_variable].unique()
+                    admin_frame = []
+                    
+                    # quick variance analysis
+                    if independent_variables is not None:
+                        variance_columns = [daf_final_freq['variable'][i]]+independent_variables
+                    
+                        for adm in admin_ls:
+                            data_temp_anova = data_temp[data_temp[admin_variable]==adm]
 
+                            var_frame = data_temp_anova[variance_columns]
+                            contingency_table = pd.crosstab(index = var_frame.iloc[:,0].values, columns =[var_frame[col] for col in variance_columns[1:]])
+                            if not contingency_table.empty:
+                                stat, p_value, dof, expected = chi2_contingency(contingency_table)
+                                if p_value < 0.05:
+                                    admin_frame = admin_frame + [adm]
+                                
+                        admin_frame = [x for x in admin_frame if x is not None]
+                        if len(admin_frame)>0:
+                            if ' Overall' in admin_frame:
+                                res_frame = 'Significant relationship'
+                            else:
+                                if admin_variable in set(tool_survey['name']):
+                                    admin_frame = map_names_ls(admin_variable,admin_frame,tool_survey, tool_choices,label_colname)                        
+                                elif special_mapping==True and len(independent_variables)==1:
+                                    if independent_variables[0] in set(tool_survey['name']):
+                                        admin_frame = map_names_ls(independent_variables[0],admin_frame,tool_survey, tool_choices,label_colname)
+                                res_frame = 'Significant relationship at: '+', '.join(admin_frame)
+                        else:
+                            res_frame = 'Insignificant relationship'
+                    else:
+                        res_frame = 'Not applicable'
+                else:
+                    res_frame = ''
+
+                
                 summary_stats = data_temp.groupby(groupby_columns)[
                     weight_column].agg(['sum', 'count'])
                 summary_stats.rename(
@@ -600,7 +679,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     
                 summary_stats_full = summary_stats_full[columns]
                 df_list.append(
-                    (summary_stats_full, daf_final_freq['ID'][i], label))
+                    (summary_stats_full, daf_final_freq['ID'][i], label,res_frame))
 
     if len(daf_final_num) > 0:
         # Deal with numerics
@@ -645,7 +724,56 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             if data_temp.shape[0] > 0:
                 mean_count = data_temp.shape[0]
                 groupby_columns = disaggregations+[daf_final_num['admin'][i]]
+                # conduct the tests around here
+                if check_significance==True:
+                    special_mapping = False
+                    if len(disaggregations)>0:
+                        independent_variables = disaggregations
+                        admin_variable = daf_final_num['admin'][i]
+                    elif len(disaggregations)==0 and daf_final_num['admin'][i] not in ['Overall','overall']:
+                        independent_variables = [daf_final_num['admin'][i]]
+                        admin_variable = 'overall'
+                        special_mapping = True
+                    else:
+                        independent_variables = None
+                        admin_variable = 'overall'
+                    
+                    if independent_variables is not None:
+                        variance_columns = [daf_final_num['variable'][i]]+independent_variables
+                        admin_ls = data_temp[daf_final_num['admin'][i]].unique()
+                        admin_frame = []
 
+                        for adm in admin_ls:
+                            data_temp_anova = data_temp[data_temp[daf_final_num['admin'][i]]==adm]
+                            var_list = [daf_final_num['variable'][i]]+independent_variables
+                            dep_list = 'C('+')+C('.join(var_list[1:len(var_list)])+')'
+                            formula_mod = f'{var_list[0]} ~ {dep_list}'
+
+                            model = ols(formula=formula_mod, data = data_temp).fit()
+                            p_val = model.f_pvalue
+                            
+                            if p_val<0.05:
+                                admin_frame = admin_frame + [adm]
+                                
+                        admin_frame = [x for x in admin_frame if x is not None]
+                        if len(admin_frame)>0:
+                            
+                            if ' Overall' in admin_frame:
+                                res_frame_num = 'Significant relationship'
+                            else:
+                                if admin_variable in set(tool_survey['name']):
+                                    admin_frame = map_names_ls(admin_variable,admin_frame,tool_survey, tool_choices,label_colname)
+                                elif special_mapping==True and len(independent_variables)==1:
+                                    if independent_variables[0] in set(tool_survey['name']):
+                                        admin_frame = map_names_ls(independent_variables[0],admin_frame,tool_survey, tool_choices,label_colname)
+                                res_frame_num = 'Significant relationship at: '+', '.join(admin_frame)
+                        else:
+                            res_frame_num = 'Insignificant relationship'
+                    else:
+                        res_frame_num = 'Not applicable'
+                else:
+                    res_frame_num = ''
+                
                 # get the general disaggregations statistics
 
                 summary_stats = data_temp.groupby(groupby_columns).apply(
@@ -738,7 +866,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                       'max', 'weighted_count', 'full_count','total_count_perc']+og_columns
                 summary_stats = summary_stats[columns]
 
-                df_list.append((summary_stats, daf_final_num['ID'][i], label))
+                df_list.append((summary_stats, daf_final_num['ID'][i], label,res_frame_num))
     return (df_list)
 
 def key_creator(row):
