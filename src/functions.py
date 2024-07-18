@@ -290,8 +290,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
         table, ID, label, significance = element
         if "perc" in table.columns:
             values_variable = "perc"
-        elif any([x.startswith('perc_') for x in table.columns]):
-            values_variable = [x for x in table.columns if x.startswith('perc_')]
+        elif any([x.startswith(('perc_','median_','mean_','max_','min_')) for x in table.columns]):
+            values_variable = [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))]
         elif 'mean' in table.columns:
             values_variable = "mean"
         else:
@@ -347,7 +347,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                 pivot_table = table[list(cols_to_keep)]
         else:
             cols_to_keep = [x for x in table.columns if 'category' in x]+['option']+\
-                [x for x in table.columns if x.startswith('perc_')]+[x for x in table.columns if x.endswith('_count')]
+                [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))]+[x for x in table.columns if x.endswith('_count')]
             pivot_table = table[cols_to_keep]
             
         cell_id = f"A{link_idx}"
@@ -493,40 +493,56 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     
                     admin_ls = data_temp[admin_variable].unique()
                     admin_frame = []
-                    
                     # quick variance analysis
                     if independent_variables is not None:
+                        admin_ls = [x for x in admin_ls if x is not None]
+                        
+                        admin_ls = admin_ls +['general']
+                        p_value_general = 1
+                        all_p_values = []
                         variance_columns = [daf_final_freq['variable'][i]]+independent_variables
                     
                         for adm in admin_ls:
-                            data_temp_anova = data_temp[data_temp[admin_variable]==adm]
+                            if adm != 'general':
+                                data_temp_anova = data_temp[data_temp[admin_variable]==adm]
+                            else:
+                                data_temp_anova = data_temp
 
                             var_frame = data_temp_anova[variance_columns]
                             contingency_table = pd.crosstab(index = var_frame.iloc[:,0].values, columns =[var_frame[col] for col in variance_columns[1:]])
                             if not contingency_table.empty:
                                 stat, p_value, dof, expected = chi2_contingency(contingency_table)
+                                p_value = round(p_value,3)
+                                
+                                if adm == 'general':
+                                    p_value_general = p_value
                                 if p_value < 0.05:
                                     admin_frame = admin_frame + [adm]
-                                
+                                    if adm != 'general':
+                                        all_p_values = all_p_values + [p_value]
+                                        
+                        admin_frame = [x for x in admin_frame if x != 'general']
                         admin_frame = [x for x in admin_frame if x is not None]
+
                         if len(admin_frame)>0:
                             if ' Overall' in admin_frame:
-                                res_frame = 'Significant relationship'
+                                res_frame = f'Significant relationship (pvalue={p_value_general})'
                             else:
                                 if admin_variable in set(tool_survey['name']):
                                     admin_frame = map_names_ls(admin_variable,admin_frame,tool_survey, tool_choices,label_colname)                        
                                 elif special_mapping==True and len(independent_variables)==1:
                                     if independent_variables[0] in set(tool_survey['name']):
                                         admin_frame = map_names_ls(independent_variables[0],admin_frame,tool_survey, tool_choices,label_colname)
-                                res_frame = 'Significant relationship at: '+', '.join(admin_frame)
+
+                                admin_text = [f'{name} (p_value={value})' for name, value in zip(admin_frame, all_p_values)]
+                                res_frame = 'Significant relationship at: '+', '.join(admin_text)
                         else:
-                            res_frame = 'Insignificant relationship'
+                            res_frame = f'Insignificant relationship (pvalue={p_value_general})'
                     else:
                         res_frame = 'Not applicable'
                 else:
                     res_frame = ''
 
-                
                 summary_stats = data_temp.groupby(groupby_columns)[
                     weight_column].agg(['sum', 'count'])
                 summary_stats.rename(
@@ -742,33 +758,51 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         variance_columns = [daf_final_num['variable'][i]]+independent_variables
                         admin_ls = data_temp[daf_final_num['admin'][i]].unique()
                         admin_frame = []
-
+                        
+                        admin_ls = [x for x in admin_ls if x is not None]
+                        admin_ls = admin_ls +['general']
+                        
+                        p_value_general = 1
+                        all_p_values = []
+                        
                         for adm in admin_ls:
-                            data_temp_anova = data_temp[data_temp[daf_final_num['admin'][i]]==adm]
+                            if adm != 'general':
+                                data_temp_anova = data_temp[data_temp[daf_final_num['admin'][i]]==adm]
+                            else:
+                                data_temp_anova = data_temp
+                                
                             var_list = [daf_final_num['variable'][i]]+independent_variables
                             dep_list = 'C('+')+C('.join(var_list[1:len(var_list)])+')'
                             formula_mod = f'{var_list[0]} ~ {dep_list}'
 
                             model = ols(formula=formula_mod, data = data_temp).fit()
                             p_val = model.f_pvalue
-                            
+                            p_val = round(p_val,3)
+                            if adm =='general':
+                                p_value_general=p_val
                             if p_val<0.05:
                                 admin_frame = admin_frame + [adm]
+                                if adm != 'general':
+                                    all_p_values = all_p_values + [p_val]
                                 
                         admin_frame = [x for x in admin_frame if x is not None]
+                        admin_frame = [x for x in admin_frame if x != 'general']
+                        
                         if len(admin_frame)>0:
                             
                             if ' Overall' in admin_frame:
-                                res_frame_num = 'Significant relationship'
+                                res_frame_num = f'Significant relationship (pvalue={p_value_general})'
                             else:
                                 if admin_variable in set(tool_survey['name']):
                                     admin_frame = map_names_ls(admin_variable,admin_frame,tool_survey, tool_choices,label_colname)
                                 elif special_mapping==True and len(independent_variables)==1:
                                     if independent_variables[0] in set(tool_survey['name']):
                                         admin_frame = map_names_ls(independent_variables[0],admin_frame,tool_survey, tool_choices,label_colname)
-                                res_frame_num = 'Significant relationship at: '+', '.join(admin_frame)
+                                        
+                                admin_text = [f'{name} (p_value={value})' for name, value in zip(admin_frame, all_p_values)]
+                                res_frame_num = 'Significant relationship at: '+', '.join(admin_text)
                         else:
-                            res_frame_num = 'Insignificant relationship'
+                            res_frame_num = f'Insignificant relationship (pvalue={p_value_general})'
                     else:
                         res_frame_num = 'Not applicable'
                 else:

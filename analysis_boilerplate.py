@@ -22,7 +22,7 @@ parquet_inputs = True # Whether you've transformed your data into a parquet inpu
 excel_path_data = 'data/test_frame.xlsx' # path to your excel datafile (you may leave it blank if working with parquet inputs)
 parquet_path_data = 'data/parquet_inputs/' # path to your parquet datafiles (you may leave it blank if working with excel input)
 
-excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx' # the path to your DAF file
+excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_2.xlsx' # the path to your DAF file
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
@@ -287,23 +287,21 @@ if pd.notna(daf_final['join']).any():
     child_tupple_index = child_tupple[0][0]
     parent_tupple_data = parent_tupple[0][1][0].copy()
     parent_tupple_index = parent_tupple[0][0]
-
     # rename the data so that they are readable
     varnames = [parent_tupple_data['variable'][0],child_tupple_data['variable'][0]]
     dataframes =[parent_tupple_data, child_tupple_data]
 
     for var, dataframe in  zip(varnames, dataframes):
-      rename_dict = {'mean': 'mean_'+var,'median': 'median'+var ,'count': 'count_'+var, 
+      rename_dict = {'mean': 'mean_'+var,'median': 'median_'+var ,'count': 'count_'+var, 
                      'perc': 'perc_'+var,'min': 'min_'+var, 'max': 'max_'+var}
 
       for old_name, new_name in rename_dict.items():
         if old_name in dataframe.columns:
           dataframe.rename(columns={old_name: new_name},inplace=True)
 
+
     # get the lists of columns to keep and merge
-    columns_to_merge = [item for item in parent_tupple_data.columns if not any(word in item for word in ['mean','median' ,'count',
-                                                                                                          'max','min',
-                                                                                                          'perc','variable'])]
+    columns_to_merge = [item for item in parent_tupple_data.columns if 'disaggregations' in item  or 'admin' in item]+['option']
     columns_to_keep = columns_to_merge+ list(rename_dict.values())
 
     parent_tupple_data= parent_tupple_data.merge(
@@ -319,7 +317,6 @@ if pd.notna(daf_final['join']).any():
       parent_sig_f = ''
 
     new_list = (parent_tupple_data,parent_index_f,parent_label_f,parent_sig_f)
-
     disaggregations_perc_new[parent_tupple_index] = new_list
     del disaggregations_perc_new[child_tupple_index]
 
