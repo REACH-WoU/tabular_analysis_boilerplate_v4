@@ -444,6 +444,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             # keep only those columns that we'll need
             selected_columns = [daf_final_freq['variable'][i]] + \
                 disaggregations+[daf_final_freq['admin'][i]]+[weight_column]
+            if 'overall' not in selected_columns:
+                selected_columns = selected_columns + ['overall']
             total_nrow = data_temp.shape[0]
             data_temp = data_temp[selected_columns]
             data_temp.loc[:, daf_final_freq['variable'][i]] = data_temp.loc[:, daf_final_freq['variable'][i]].apply(
@@ -479,51 +481,55 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 # check significance if such was specified
                 if check_significance ==True:
                     special_mapping = False
-                    # check different cases of dependence              
+                    # check different cases of dependence     
+                    # base case         
                     if len(disaggregations)>0:
                         independent_variables = disaggregations
                         admin_variable = daf_final_freq['admin'][i]
+                    # if no disaggregations were chosen - test geo dependence if there are multiple groups
                     elif len(disaggregations)==0 and daf_final_freq['admin'][i] not in ['Overall','overall']:
-                        independent_variables = daf_final_freq['admin'][i]
+                        independent_variables = [daf_final_freq['admin'][i]]
                         admin_variable = 'overall'
                         special_mapping= True
+                    # if not, don't do anything
                     else:
                         independent_variables = None
                         admin_variable = 'overall'
-                    
                     admin_ls = data_temp[admin_variable].unique()
                     admin_frame = []
                     # quick variance analysis
                     if independent_variables is not None:
                         admin_ls = [x for x in admin_ls if x is not None]
-                        
+                        # add a general p-value to perform a base test with no admin disaggregation
                         admin_ls = admin_ls +['general']
+                        # objects that'll hold our results
                         p_value_general = 1
                         all_p_values = []
+                        # get the variance columns
                         variance_columns = [daf_final_freq['variable'][i]]+independent_variables
                     
                         for adm in admin_ls:
+                            # if we aren't dealing with a general case - get the subset of the data
                             if adm != 'general':
                                 data_temp_anova = data_temp[data_temp[admin_variable]==adm]
                             else:
                                 data_temp_anova = data_temp
-
+                            # get the chi squared of the variables
                             var_frame = data_temp_anova[variance_columns]
                             contingency_table = pd.crosstab(index = var_frame.iloc[:,0].values, columns =[var_frame[col] for col in variance_columns[1:]])
                             if not contingency_table.empty:
                                 stat, p_value, dof, expected = chi2_contingency(contingency_table)
                                 p_value = round(p_value,3)
-                                
+                                # save the results. General results get saved no matter what.
+                                # admin disaggregated results get saved only if they're significant
                                 if adm == 'general':
                                     p_value_general = p_value
-                                if p_value < 0.05:
+                                elif p_value < 0.05 and adm != 'general':
                                     admin_frame = admin_frame + [adm]
-                                    if adm != 'general':
-                                        all_p_values = all_p_values + [p_value]
+                                    all_p_values = all_p_values + [p_value]
                                         
-                        admin_frame = [x for x in admin_frame if x != 'general']
                         admin_frame = [x for x in admin_frame if x is not None]
-
+                        # some bit of code that does nice formatting of the results
                         if len(admin_frame)>0:
                             if ' Overall' in admin_frame:
                                 res_frame = f'Significant relationship (pvalue={p_value_general})'
@@ -732,6 +738,9 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             # keep only those columns that we'll need
             selected_columns = [daf_final_num['variable'][i]] + \
                 disaggregations+[daf_final_num['admin'][i]]+[weight_column]
+            if 'overall' not in selected_columns:
+                selected_columns = selected_columns + ['overall']
+                
             data_temp = data_temp[selected_columns]
             total_nrow = data_temp.shape[0]
             # drop all NA observations
@@ -743,51 +752,58 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 # conduct the tests around here
                 if check_significance==True:
                     special_mapping = False
+                    # check different cases of dependence   
+                    # base case         
                     if len(disaggregations)>0:
                         independent_variables = disaggregations
                         admin_variable = daf_final_num['admin'][i]
+                    # if no disaggregations were chosen - test geo dependence if there are multiple groups
                     elif len(disaggregations)==0 and daf_final_num['admin'][i] not in ['Overall','overall']:
                         independent_variables = [daf_final_num['admin'][i]]
                         admin_variable = 'overall'
                         special_mapping = True
+                     # if not, don't do anything
                     else:
                         independent_variables = None
                         admin_variable = 'overall'
-                    
+                     # quick variance analysis
                     if independent_variables is not None:
                         variance_columns = [daf_final_num['variable'][i]]+independent_variables
                         admin_ls = data_temp[daf_final_num['admin'][i]].unique()
+                        
                         admin_frame = []
                         
                         admin_ls = [x for x in admin_ls if x is not None]
+                        # add a general p-value to perform a base test with no admin disaggregation
                         admin_ls = admin_ls +['general']
-                        
+                        # objects that'll hold our results
                         p_value_general = 1
                         all_p_values = []
                         
                         for adm in admin_ls:
+                            # if we aren't dealing with a general case - get the subset of the data
                             if adm != 'general':
                                 data_temp_anova = data_temp[data_temp[daf_final_num['admin'][i]]==adm]
                             else:
                                 data_temp_anova = data_temp
-                                
+                            # format model inputs
                             var_list = [daf_final_num['variable'][i]]+independent_variables
                             dep_list = 'C('+')+C('.join(var_list[1:len(var_list)])+')'
                             formula_mod = f'{var_list[0]} ~ {dep_list}'
-
+                            # perform a basic OLS and get the model's p_value
                             model = ols(formula=formula_mod, data = data_temp).fit()
                             p_val = model.f_pvalue
                             p_val = round(p_val,3)
+                            # save the results. General results get saved no matter what.
+                            # admin disaggregated results get saved only if they're significant
                             if adm =='general':
                                 p_value_general=p_val
-                            if p_val<0.05:
+                            elif p_val<0.05 and adm != 'general':
                                 admin_frame = admin_frame + [adm]
-                                if adm != 'general':
-                                    all_p_values = all_p_values + [p_val]
+                                all_p_values = all_p_values + [p_val]
                                 
                         admin_frame = [x for x in admin_frame if x is not None]
-                        admin_frame = [x for x in admin_frame if x != 'general']
-                        
+                        # some bit of code that does nice formatting of the results
                         if len(admin_frame)>0:
                             
                             if ' Overall' in admin_frame:

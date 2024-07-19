@@ -22,7 +22,7 @@ parquet_inputs = True # Whether you've transformed your data into a parquet inpu
 excel_path_data = 'data/test_frame.xlsx' # path to your excel datafile (you may leave it blank if working with parquet inputs)
 parquet_path_data = 'data/parquet_inputs/' # path to your parquet datafiles (you may leave it blank if working with excel input)
 
-excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_2.xlsx' # the path to your DAF file
+excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx' # the path to your DAF file
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
@@ -221,8 +221,11 @@ for element in disaggregations_count:
 
 # Get the columns for Analysis key table 
 concatenated_df_orig = pd.concat([tpl[0] for tpl in disaggregations_orig], ignore_index = True)
-concatenated_df_orig = concatenated_df_orig[(concatenated_df_orig['admin'] != 'Total') & (concatenated_df_orig['disaggregations_category_1'] != 'Total')]
-
+if 'disaggregations_category_1' in concatenated_df_orig.columns:
+  concatenated_df_orig = concatenated_df_orig[(concatenated_df_orig['admin'] != 'Total') & (concatenated_df_orig['disaggregations_category_1'] != 'Total')]
+else:
+  concatenated_df_orig = concatenated_df_orig[(concatenated_df_orig['admin'] != 'Total')]
+  
 disagg_columns_og = [col for col in concatenated_df_orig.columns if col.startswith('disaggregations') and not col.endswith('orig')]
 ls_orig = ['admin','admin_category','option', 'variable']+disagg_columns_og
 
@@ -247,7 +250,10 @@ concatenated_df_orig=concatenated_df_orig[['key','perc']]
 
 # prepare dashboard inputs 
 concatenated_df = pd.concat([tpl[0] for tpl in disaggregations_perc], ignore_index = True)
-concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total') & (concatenated_df['disaggregations_category_1'] != 'Total')]
+if 'disaggregations_category_1' in concatenated_df.columns:
+  concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total') & (concatenated_df['disaggregations_category_1'] != 'Total')]
+else:
+    concatenated_df = concatenated_df[(concatenated_df['admin'] != 'Total')]
 
 
 disagg_columns = [col for col in concatenated_df.columns if col.startswith('disaggregations')]
@@ -268,8 +274,13 @@ if pd.notna(daf_final['join']).any():
 
   for index, child_row in child_rows.iterrows():
     child_index = child_row['ID']
+    
+    if child_index not in daf_final['ID']:
+      raise ValueError(f'The specified parent index in join column for child row ID = {child_index} doesnt exist in the DAF file')
+    
     parent_row = daf_final[daf_final['ID'].isin(child_row[['join']])]
     parent_index = parent_row.iloc[0]['ID']
+
 
     # check that the rows are idential
     parent_check = parent_row[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
