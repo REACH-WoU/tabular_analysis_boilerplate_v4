@@ -65,6 +65,15 @@ for sheet_name in sheets:
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
+
+colnames_daf = set(['ID','variable','variable_label',
+                    'calculation','func','admin','disaggregations','disaggregations_label','join'])
+
+if not colnames_daf.issubset(daf.columns):
+  raise ValueError(f'Missing one or more columns from the DAF file main sheet:'+
+                                  ', '.join(colnames_daf.difference(daf.columns())))
+
+
 # remove spaces
 for column in ['variable','admin','calculation','func','disaggregations']:
   daf[column] = daf[column].apply(lambda x: x.strip() if isinstance(x, str) else x)
@@ -79,9 +88,8 @@ if any(daf['variable']==daf['disaggregations']):
 
 wrong_functions = set(daf['func'])-{'mean','numeric','select_one','select_multiple','freq'}
 if len(wrong_functions)>0:
-
   raise ValueError(f'Wrong functions entered: '+str(wrong_functions)+'. Please fix your function entries')
-filter_daf = pd.read_excel(excel_path_daf, sheet_name="filter")
+
 # add the datasheet column
 
 names_data= pd.DataFrame()
@@ -133,6 +141,8 @@ if daf_numeric.shape[0]>0:
 
 
 print('Checking your filter page and building the filter dictionary')
+
+filter_daf = pd.read_excel(excel_path_daf, sheet_name="filter")
 
 if filter_daf.shape[0]>0:
   check_daf_filter(daf =daf_merged, data = data,filter_daf=filter_daf, tool_survey=tool_survey, tool_choices=tool_choices)
