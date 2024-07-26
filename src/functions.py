@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import re
 from itertools import combinations
-from openpyxl.styles import PatternFill, Font
+from openpyxl.styles import PatternFill, Font, Border, Side
+from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl import Workbook
 from scipy.stats import chi2_contingency
 from statsmodels.formula.api import ols
@@ -275,6 +276,24 @@ def make_pivot(table, index_list, column_list, value):
     return pivot_table
 
 
+def get_color(value):
+    """
+    Generate a color that transitions from red (0%), to yellow/orange (50%), to green (100%).
+    """
+    if value <= 1:
+        if value <= 0.5:
+            # Interpolate between red and yellow/orange
+            red = 255
+            green = int(510 * value)  # 255 * 2 * value
+            blue = 0
+        else:
+            # Interpolate between yellow/orange and green
+            red = int(510 * (1 - value))  # 255 * 2 * (1 - value)
+            green = 255
+            blue = 0
+        return f"{red:02X}{green:02X}{blue:02X}"
+    return "FFFFFF"  # White for NaN or values > 1
+
 def construct_result_table(tables_list, file_name, make_pivot_with_strata=False):
     workbook = Workbook()
     workbook.create_sheet("Table_of_content", 0)
@@ -330,7 +349,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                     table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
-        elif values_variable =='mean':
+        elif values_variable == 'mean':
             if make_pivot_with_strata:
                 # add numeric columns as a single one
                 table = table.reset_index()
@@ -343,8 +362,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
             else:
                 # if it's just a regular table - remove excessive information
                 cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc']
-                cols_to_keep = set(table.columns).difference(cols_to_drop)
-                pivot_table = table[list(cols_to_keep)]
+                cols_to_keep = [i for i in table.columns if i not in cols_to_drop]
+                pivot_table = table[cols_to_keep]
         else:
             cols_to_keep = [x for x in table.columns if 'category' in x]+['option']+\
                 [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))]+[x for x in table.columns if x.endswith('_count')]
@@ -354,16 +373,53 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
         link_idx += len(pivot_table) + 3
         data_sheet.append([label])
         data_sheet.append(list(pivot_table.columns))
+        min_col_values = []
+        max_col_values = []
+        for column in pivot_table.columns:
+            min_col_values.append(pivot_table[column].min())
+            max_col_values.append(pivot_table[column].max())
+
         for _, row in pivot_table.iterrows():
+            row_id = data_sheet.max_row + 1
             if values_variable == "perc":
-                row_id = data_sheet.max_row + 1
+                
                 for i, value in enumerate(row):
                     cell = data_sheet.cell(row=row_id, column=i + 1)
                     cell.value = value
                     if isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value):
                         if value <= 1:
                             cell.number_format = '0.00%'
-            else:
+                            color = get_color(value)
+                            cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                            
+                            thin_border = Border(
+                            left=Side(style='thin'),
+                            right=Side(style='thin'),
+                            top=Side(style='thin'),
+                            bottom=Side(style='thin')
+                        )
+
+                        cell.border = thin_border
+            elif values_variable == 'mean':
+                for i, value in enumerate(row):
+                    cell = data_sheet.cell(row=row_id, column=i + 1)
+                    cell.value = value
+                    if isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value) and pivot_table.columns[i] in ['mean', 'median', 'max' ,'min']:
+                        normalized_value = (value - min_col_values[i]) / (max_col_values[i] - min_col_values[i])
+                        color = get_color(normalized_value)
+                        if min_col_values[i] == max_col_values[i]:
+                            color = get_color(1)
+                        cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+
+                        thin_border = Border(
+                            left=Side(style='thick'),
+                            right=Side(style='thick'),
+                            top=Side(style='thin'),
+                            bottom=Side(style='thin')
+                        )
+
+                        cell.border = thin_border
+            else:    
                 data_sheet.append(list(row))
         data_sheet.append([])
 
