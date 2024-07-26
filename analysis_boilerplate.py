@@ -22,7 +22,7 @@ parquet_inputs = True # Whether you've transformed your data into a parquet inpu
 excel_path_data = 'data/test_frame.xlsx' # path to your excel datafile (you may leave it blank if working with parquet inputs)
 parquet_path_data = 'data/parquet_inputs/' # path to your parquet datafiles (you may leave it blank if working with excel input)
 
-excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx' # the path to your DAF file
+excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_3.xlsx' # the path to your DAF file
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
@@ -71,7 +71,7 @@ colnames_daf = set(['ID','variable','variable_label',
 
 if not colnames_daf.issubset(daf.columns):
   raise ValueError(f'Missing one or more columns from the DAF file main sheet:'+
-                                  ', '.join(colnames_daf.difference(daf.columns())))
+                                  ', '.join(colnames_daf.difference(daf.columns)))
 
 
 # remove spaces

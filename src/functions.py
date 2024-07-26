@@ -396,10 +396,10 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                             left=Side(style='thin'),
                             right=Side(style='thin'),
                             top=Side(style='thin'),
-                            bottom=Side(style='thin')
-                        )
+                            bottom=Side(style='thin'))
 
-                        cell.border = thin_border
+                            cell.border = thin_border
+                            
             elif values_variable == 'mean':
                 for i, value in enumerate(row):
                     cell = data_sheet.cell(row=row_id, column=i + 1)
