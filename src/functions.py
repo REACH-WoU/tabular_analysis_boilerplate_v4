@@ -118,7 +118,8 @@ def weighted_mean(df, weight_column, numeric_column):
     if cum_weights.iloc[median_index] == total_weight / 2.0 or sorted_df.shape[0] <= 2:
         weighted_median_result = sorted_df.iloc[median_index][numeric_column]
     else:
-        weighted_median_result = sorted_df.iloc[median_index + 1][numeric_column]
+        min_of_two = np.min([median_index + 1, sorted_df.shape[0]-1])
+        weighted_median_result = sorted_df.iloc[min_of_two][numeric_column]
     
     return pd.Series({'mean': weighted_mean_result,
                       'median':weighted_median_result,
