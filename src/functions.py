@@ -52,6 +52,8 @@ def load_tool_survey(filename_tool, label_colname, keep_cols=False):
         cols_to_keep = tool_survey.columns[(tool_survey.columns.str.contains(f'((label)|(hint)|(constraint_message)|(required_message))::{lang_code}')) |
                                            (~tool_survey.columns.str.contains(r'((label)|(hint)|(constraint_message)|(required_message))::'))]
         tool_survey = tool_survey[cols_to_keep]
+    tool_survey = tool_survey[tool_survey['q.type'].isin(['select_one','select_multiple','integer','decimal'])]
+
 
     # Find which data sheet question belongs to
     tool_survey['datasheet'] = None
