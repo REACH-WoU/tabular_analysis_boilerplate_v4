@@ -337,7 +337,7 @@ if pd.notna(daf_final['join']).any():
     # get the lists of columns to keep and merge
     columns_to_merge = [item for item in parent_tupple_data.columns if 'disaggregations' in item  or 'admin' in item]
     if 'option' in  parent_tupple_data.columns:
-      columns_to_merge=+['option']
+      columns_to_merge=columns_to_merge+['option']
       
     columns_to_keep = columns_to_merge+ list(rename_dict.values())
 
