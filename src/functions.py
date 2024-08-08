@@ -368,8 +368,11 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                 cols_to_keep = [i for i in table.columns if i not in cols_to_drop]
                 pivot_table = table[cols_to_keep]
         else:
-            cols_to_keep = [x for x in table.columns if 'category' in x]+['option']+\
-                [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))]+[x for x in table.columns if x.endswith('_count')]
+            cols_to_keep = ([x for x in table.columns if 'category' in x]
+            +(['option']  if 'option' in table.columns else [])
+            +[x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))]
+            +[x for x in table.columns if x.endswith('_count')])
+
             pivot_table = table[cols_to_keep]
             
         cell_id = f"A{link_idx}"
@@ -430,6 +433,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
             link_value = ', '.join(values_variable)
         else:
             link_value = values_variable
+        if len(link_value)>30:
+            link_value= link_value[:30]+'...'
             
         text_on_link = label + ' ' + link_value
         link_text = f'=HYPERLINK("#\'Data\'!{cell_id}", "{text_on_link}")'

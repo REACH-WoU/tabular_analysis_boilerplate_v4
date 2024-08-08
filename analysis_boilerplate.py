@@ -22,7 +22,7 @@ parquet_inputs = True # Whether you've transformed your data into a parquet inpu
 excel_path_data = 'data/test_frame.xlsx' # path to your excel datafile (you may leave it blank if working with parquet inputs)
 parquet_path_data = 'data/parquet_inputs/' # path to your parquet datafiles (you may leave it blank if working with excel input)
 
-excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx' # the path to your DAF file
+excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_2.xlsx' # the path to your DAF file
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
@@ -285,7 +285,7 @@ if pd.notna(daf_final['join']).any():
   for index, child_row in child_rows.iterrows():
     child_index = child_row['ID']
     
-    if child_index not in daf_final['ID']:
+    if child_index not in daf_final['ID'].values:
       raise ValueError(f'The specified parent index in join column for child row ID = {child_index} doesnt exist in the DAF file')
     
     parent_row = daf_final[daf_final['ID'].isin(child_row[['join']])]
@@ -296,8 +296,11 @@ if pd.notna(daf_final['join']).any():
     parent_check = parent_row[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
     child_check = child_row.to_frame().transpose()[['disaggregations','func','calculation','admin','q.type']].reset_index(drop=True)
 
+    # transform None to be of the same type
+    parent_check = parent_check.infer_objects(copy=False).fillna(np.nan)
+    child_check = child_check.infer_objects(copy=False).fillna(np.nan)
+    
     check_result = child_check.equals(parent_check)
-
     if not check_result:
       raise ValueError('Joined rows are not identical in terms of admin, calculations, function and disaggregations')
     # get the data and dataframe indeces of parents and children
@@ -309,7 +312,17 @@ if pd.notna(daf_final['join']).any():
     parent_tupple_data = parent_tupple[0][1][0].copy()
     parent_tupple_index = parent_tupple[0][0]
     # rename the data so that they are readable
-    varnames = [parent_tupple_data['variable'][0],child_tupple_data['variable'][0]]
+    
+    
+    if parent_tupple_data['variable'][0] == child_tupple_data['variable'][0]:
+      var_parent = parent_tupple_data['variable'][0] + '_' +str(parent_tupple_data['ID'][0])
+      var_child = child_tupple_data['variable'][0] + '_' + str(child_tupple_data['ID'][0])
+      warnings.warn("Some of the rows you're joining have the same variable label. This won't look nice")
+    else:
+      var_parent = parent_tupple_data['variable'][0] 
+      var_child = child_tupple_data['variable'][0] 
+    
+    varnames = [var_parent,var_child]
     dataframes =[parent_tupple_data, child_tupple_data]
 
     for var, dataframe in  zip(varnames, dataframes):
@@ -322,7 +335,10 @@ if pd.notna(daf_final['join']).any():
 
 
     # get the lists of columns to keep and merge
-    columns_to_merge = [item for item in parent_tupple_data.columns if 'disaggregations' in item  or 'admin' in item]+['option']
+    columns_to_merge = [item for item in parent_tupple_data.columns if 'disaggregations' in item  or 'admin' in item]
+    if 'option' in  parent_tupple_data.columns:
+      columns_to_merge=+['option']
+      
     columns_to_keep = columns_to_merge+ list(rename_dict.values())
 
     parent_tupple_data= parent_tupple_data.merge(
@@ -331,7 +347,12 @@ if pd.notna(daf_final['join']).any():
 
 
     parent_index_f = parent_tupple[0][1][1]
-    parent_label_f = str(child_tupple[0][1][2]).split()[0]+' & '+ str(parent_tupple[0][1][2])
+
+    if  str(child_tupple[0][1][2])==str(parent_tupple[0][1][2]):
+      parent_label_f = str(parent_tupple[0][1][2])
+    else:
+      parent_label_f = str(child_tupple[0][1][2]).split()[0]+' & '+ str(parent_tupple[0][1][2])
+      
     if str(child_tupple[0][1][3]) != '':
       parent_sig_f = str(child_tupple[0][1][3])+' & '+ str(parent_tupple[0][1][3])
     else:
