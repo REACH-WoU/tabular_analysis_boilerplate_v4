@@ -406,16 +406,24 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
 
                             cell.border = thin_border
                             
-            elif values_variable == 'mean':
+            elif values_variable == 'mean' or isinstance(values_variable,list):
                 for i, value in enumerate(row):
                     cell = data_sheet.cell(row=row_id, column=i + 1)
                     cell.value = value
-                    if isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value) and pivot_table.columns[i] in ['mean', 'median', 'max' ,'min']:
+                    
+                    if (isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value))\
+                        and (pivot_table.columns[i] in ['mean', 'median', 'max' ,'min'] or pivot_table.columns[i].startswith(('perc_','median_','mean_','max_','min_'))):
                         normalized_value = (value - min_col_values[i]) / (max_col_values[i] - min_col_values[i])
+                        
                         color = get_color(normalized_value)
-                        if min_col_values[i] == max_col_values[i]:
-                            color = get_color(1)
-                        cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                        if pivot_table.columns[i].startswith('perc_'):
+                            cell.number_format = '0.00%'
+                            color = get_color(value)
+                            cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                        else:
+                            if min_col_values[i] == max_col_values[i]:
+                                color = get_color(1)
+                            cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
 
                         thin_border = Border(
                             left=Side(style='thick'),
