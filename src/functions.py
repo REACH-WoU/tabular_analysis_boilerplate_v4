@@ -52,7 +52,6 @@ def load_tool_survey(filename_tool, label_colname, keep_cols=False):
         cols_to_keep = tool_survey.columns[(tool_survey.columns.str.contains(f'((label)|(hint)|(constraint_message)|(required_message))::{lang_code}')) |
                                            (~tool_survey.columns.str.contains(r'((label)|(hint)|(constraint_message)|(required_message))::'))]
         tool_survey = tool_survey[cols_to_keep]
-    tool_survey = tool_survey[tool_survey['q.type'].isin(['select_one','select_multiple','integer','decimal'])]
 
 
     # Find which data sheet question belongs to
@@ -66,6 +65,8 @@ def load_tool_survey(filename_tool, label_colname, keep_cols=False):
         elif not re.search(r'((end)|(begin))[_ ]group', toolrow['type'], re.IGNORECASE):
             tool_survey.loc[i, 'datasheet'] = sheet_name
 
+    tool_survey = tool_survey[tool_survey['q.type'].isin(['select_one','select_multiple','integer','decimal'])]
+    
     return tool_survey
 
 
@@ -312,8 +313,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
         table, ID, label, significance = element
         if "perc" in table.columns:
             values_variable = "perc"
-        elif any([x.startswith(('perc_','median_','mean_','max_','min_')) for x in table.columns]):
-            values_variable = [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))]
+        elif any([x.startswith(('perc_','median_','mean_','max_','min_','category_count_')) for x in table.columns]):
+            values_variable = [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_','category_count_'))]
         elif 'mean' in table.columns:
             values_variable = "mean"
         else:
@@ -368,9 +369,13 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                 cols_to_keep = [i for i in table.columns if i not in cols_to_drop]
                 pivot_table = table[cols_to_keep]
         else:
-            cols_to_keep = ([x for x in table.columns if 'category' in x]
+            # check if we're dealing with a count table
+            category_count_columns = [x for x in table.columns if x.startswith('category_count_')]
+
+            cols_to_keep = ([x for x in table.columns if '_category' in x]
             +(['option']  if 'option' in table.columns else [])
-            +[x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))]
+            +(category_count_columns if category_count_columns else
+            [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))])
             +[x for x in table.columns if x.endswith('_count')])
 
             pivot_table = table[cols_to_keep]
@@ -438,13 +443,14 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
         data_sheet.append([])
 
         if isinstance(values_variable,list):
-            link_value = ', '.join(values_variable)
+            link_value = '' #', '.join(values_variable)
         else:
             link_value = values_variable
-        if len(link_value)>30:
-            link_value= link_value[:30]+'...'
             
         text_on_link = label + ' ' + link_value
+        if len(text_on_link)>150:
+            text_on_link= text_on_link[:150]+'...'
+            
         link_text = f'=HYPERLINK("#\'Data\'!{cell_id}", "{text_on_link}")'
         content_sheet.cell(row=idx + 2, column=2, value=link_text)
         content_sheet.cell(row=idx + 2, column=1, value=ID)
@@ -753,11 +759,11 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 summary_stats_full['full_count'] = freq_count
                 if disaggregations != []:
-                    label = daf_final_freq.iloc[i]['variable']+' broken down by ' + \
+                    label = daf_final_freq.iloc[i]['variable_label']+' broken down by ' + \
                         daf_final_freq.iloc[i]['disaggregations'] + \
                         ' on the admin of '+daf_final_freq.iloc[i]['admin']
                 else:
-                    label = daf_final_freq.iloc[i]['variable'] + \
+                    label = daf_final_freq.iloc[i]['variable_label'] + \
                         ' on the admin of '+daf_final_freq.iloc[i]['admin']
 
                 disagg_columns = [
@@ -970,11 +976,11 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 summary_stats['full_count'] = mean_count
                 summary_stats.rename(columns = {'count' : 'weighted_count'}, inplace = True)
                 if disaggregations != []:
-                    label = daf_final_num.iloc[i]['variable']+' broken down by ' + \
+                    label = daf_final_num.iloc[i]['variable_label']+' broken down by ' + \
                         daf_final_num.iloc[i]['disaggregations'] + \
                         ' on the admin of '+daf_final_num.iloc[i]['admin']
                 else:
-                    label = daf_final_num.iloc[i]['variable'] + \
+                    label = daf_final_num.iloc[i]['variable_label'] + \
                         ' on the admin of '+daf_final_num.iloc[i]['admin']
                 summary_stats['total_count_perc'] = round((summary_stats['full_count']/total_nrow)*100,2)
                 
