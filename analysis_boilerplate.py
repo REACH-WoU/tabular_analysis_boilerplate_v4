@@ -22,7 +22,7 @@ parquet_inputs = True # Whether you've transformed your data into a parquet inpu
 excel_path_data = 'data/test_frame.xlsx' # path to your excel datafile (you may leave it blank if working with parquet inputs)
 parquet_path_data = 'data/parquet_inputs/' # path to your parquet datafiles (you may leave it blank if working with excel input)
 
-excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters.xlsx' # the path to your DAF file
+excel_path_daf = 'resources/UKR_MSNA_MSNI_DAF_inters_2.xlsx' # the path to your DAF file
 excel_path_tool = 'resources/MSNA_2023_Questionnaire_Final_CATI_cleaned.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
@@ -65,7 +65,6 @@ for sheet_name in sheets:
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
-
 colnames_daf = set(['ID','variable','variable_label',
                     'calculation','func','admin','disaggregations','disaggregations_label','join'])
 
@@ -211,21 +210,28 @@ disaggregations_count_w = deepcopy(disaggregations_full) # weighted count table
 # remove counts prom perc table
 for element in disaggregations_perc:
   if isinstance(element[0], pd.DataFrame):  
-    if all(column in element[0].columns for column in ['category_count','weighted_count']):
-      element[0].drop(columns=['category_count','weighted_count','unweighted_count'], inplace=True)
+    columns_to_drop = ['category_count', 'weighted_count', 'unweighted_count']
+    # Drop each column if it exists in the DataFrame
+    for column in columns_to_drop:
+      if column in element[0].columns:
+        element[0].drop(columns=column, inplace=True)
 
 # remove perc columns from weighted count table
 for element in disaggregations_count_w:
   if isinstance(element[0], pd.DataFrame):  
-    if all(column in element[0].columns for column in ['perc']):
-      element[0].drop(columns=['perc','unweighted_count'], inplace=True)
+    columns_to_drop = ['perc', 'unweighted_count']
+    for column in columns_to_drop:
+      if column in element[0].columns:
+        element[0].drop(columns=column, inplace=True)
     element[0].rename(columns={'weighted_count': 'category_count'}, inplace=True)
           
 # remove perc columns from unweighted count table
 for element in disaggregations_count:
   if isinstance(element[0], pd.DataFrame):  
-    if all(column in element[0].columns for column in ['perc']):
-      element[0].drop(columns=['perc','weighted_count'], inplace=True)
+    columns_to_drop = ['perc', 'weighted_count']
+    for column in columns_to_drop:
+      if column in element[0].columns:
+        element[0].drop(columns=column, inplace=True)
     element[0].rename(columns={'unweighted_count': 'category_count'}, inplace=True)
 
 
@@ -243,7 +249,7 @@ for column in ls_orig:
   if column in concatenated_df_orig.columns:
     if column+'_orig' not in concatenated_df_orig.columns:
       concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column]
-    concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column+'_orig'].fillna(concatenated_df_orig[column])
+    concatenated_df_orig[column+'_orig'] = concatenated_df_orig[column+'_orig'].infer_objects(copy=False).fillna(concatenated_df_orig[column])
 
 
 concatenated_df_orig = concatenated_df_orig.merge(daf_final[['ID','q.type']], on='ID', how='left')
@@ -274,6 +280,7 @@ print('Joining tables if such was specified')
 disaggregations_perc_new = disaggregations_perc.copy()
 disaggregations_count_new  = disaggregations_count.copy()
 disaggregations_count_w_new  = disaggregations_count_w.copy()
+
 
 for data_frame in [disaggregations_perc_new,disaggregations_count_new,disaggregations_count_w_new]:
 # check if any joining is needed
@@ -384,7 +391,6 @@ disaggregations_count_w_new = sorted(disaggregations_count_w_new, key=lambda x: 
 disaggregations_count_new = sorted(disaggregations_count_new, key=lambda x: x[1])
 
 # construct the tables now
-
 construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False)
 if weighting_column != None:
   construct_result_table(disaggregations_count_w_new, filename_toc_count_w,make_pivot_with_strata = False)
