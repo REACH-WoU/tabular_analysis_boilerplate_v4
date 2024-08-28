@@ -2,9 +2,8 @@ import pandas as pd
 import numpy as np
 import re
 from itertools import combinations
-from openpyxl.styles import PatternFill, Font, Border, Side
-from openpyxl.formatting.rule import ColorScaleRule
-from openpyxl import Workbook
+import string
+import xlsxwriter
 from scipy.stats import chi2_contingency
 from statsmodels.formula.api import ols
 import warnings
@@ -300,42 +299,76 @@ def get_color(value):
         return f"{red:02X}{green:02X}{blue:02X}"
     return "FFFFFF"  # White for NaN or values > 1
 
-def construct_result_table(tables_list, file_name, make_pivot_with_strata=False):
-    workbook = Workbook()
-    workbook.create_sheet("Table_of_content", 0)
-    workbook.create_sheet("Data", 1)
-    content_sheet = workbook["Table_of_content"]
-    data_sheet = workbook["Data"]
+def col_num_to_excel(col_num):
+    """Convert a zero-based column index to an Excel-style column letter (e.g., 0 -> A, 1 -> B)."""
+    letters = string.ascii_uppercase
+    if col_num < len(letters):
+        return letters[col_num]
+    else:
+        # For columns beyond 'Z', handle multi-letter column names (e.g., 26 -> AA, 27 -> AB)
+        return col_num_to_excel(col_num // 26 - 1) + letters[col_num % 26]
+
+
+def construct_result_table(tables_list, file_name, make_pivot_with_strata=False, color_cells=True):
+    
+    workbook = xlsxwriter.Workbook(file_name)
+    
+    content_sheet = workbook.add_worksheet("Table_of_content")
+    data_sheet = workbook.add_worksheet("Data")
     link_idx = 1
 
+    # Define formatting
+    
+    percent_format = workbook.add_format({"num_format": "0.00%"})
+    
+    round_format = workbook.add_format({"num_format": "0.00"})
+
+    bold = workbook.add_format({'bold': True})
+
+    border_format=workbook.add_format({
+                            'border':1,
+                            'align':'left',
+                            'font_size':10
+                           })
+
     # add columns in the content sheet
-    content_sheet.append(["ID", "Link","Significance"])
+    data = ["ID", "Link", "Significance"]
+    for col_num, value in enumerate(data):
+        content_sheet.write(0, col_num, value)
 
     for idx, element in enumerate(tables_list):
         table, ID, label, significance = element
-        if "perc" in table.columns:
+        # print(ID)
+        cols_tbl = table.columns
+        pivot_column_names = {'disaggregations_category_1', 'oblast', 'macroregion'}
+
+        if "perc" in cols_tbl:
             values_variable = "perc"
-        elif any([x.startswith(('perc_','median_','mean_','max_','min_','category_count_')) for x in table.columns]):
-            values_variable = [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_','category_count_'))]
-        elif 'mean' in table.columns and 'category_count' not in table.columns:
-            values_variable = "mean"
-        elif 'mean' in table.columns and 'category_count'  in table.columns:
-            values_variable = 'count_mean'
         else:
-            values_variable = 'category_count'
-        if 'disaggregations_category_1' in table.columns:
-            pivot_columns = ["disaggregations_category_1"]
-        else:
+            if any([x.startswith(('perc_','median_','mean_','max_','min_','category_count_')) for x in cols_tbl]):
+                values_variable = [x for x in cols_tbl if x.startswith(('perc_','median_','mean_','max_','min_','category_count_'))]
+            elif 'mean' in table.columns and 'category_count' not in table.columns:
+               values_variable = "mean"
+            elif 'mean' in table.columns and 'category_count'  in table.columns:
+                values_variable = 'count_mean'
+            else:
+                values_variable = 'category_count'
             pivot_columns = []
             
-        columns = [x for x in table.columns if ('disaggregations_category_' in x)]
+        pivot_columns = [col for col in pivot_column_names if col in cols_tbl]
+        # else:
+        #     pivot_columns = []
+            
+        columns = [x for x in cols_tbl if ('disaggregations_category_' in x)]
         missed_cols = set(columns).difference(['disaggregations_category_1'])
         if len(missed_cols)>0:
             pivot_columns.extend(list(missed_cols))
             
-        if values_variable == "perc" or values_variable == 'category_count':
+            
+        if values_variable in ["perc" ,'category_count']:
             if make_pivot_with_strata:
-                if table['admin_category'].isin(['Total']).any():
+                
+                if 'Total' in table['admin_category'].values:
                     table_dirty = table[table['admin_category'] == 'Total']
                     table_clean = table[table['admin_category'] != 'Total']
 
@@ -350,13 +383,19 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                     pivot_table = make_pivot(
                         table, pivot_columns + ["option"], ["admin_category"], values_variable)
             else:
-                if 'general_count' in table.columns:
+                if 'general_count' in cols_tbl:
                     pivot_columns.append('general_count')
+
                     
                 pivot_table = make_pivot(
                     table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
+                
+                if 'macroregion' in pivot_table.columns:
+                    pivot_table = pivot_table.sort_values(
+                        by='macroregion'
+                    )
         elif values_variable == 'count_mean':
             table = table.reset_index(drop = True)
             cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc','min','max','median','mean']
@@ -365,6 +404,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
                 pivot_table = make_pivot(table, pivot_columns, ["admin_category"], 'category_count')
             else:
                 pivot_table = table[cols_to_keep]
+                
         elif values_variable == 'mean':
             if make_pivot_with_strata:
                 # add numeric columns as a single one
@@ -378,111 +418,135 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False)
             else:
                 # if it's just a regular table - remove excessive information
                 cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc']
-                cols_to_keep = [i for i in table.columns if i not in cols_to_drop]
+                cols_to_keep = [i for i in cols_tbl if i not in cols_to_drop]
                 pivot_table = table[cols_to_keep]
         else:
             # check if we're dealing with a count table
-            # print(table.columns)
-            category_count_columns = [x for x in table.columns if x.startswith('category_count_')]
+            category_count_columns = [x for x in cols_tbl if x.startswith('category_count_')]
 
-            cols_to_keep = ([x for x in table.columns if '_category' in x]
-            +(['option']  if 'option' in table.columns else [])
+            cols_to_keep = ([x for x in cols_tbl if '_category' in x]
+            +(['option']  if 'option' in cols_tbl else [])
             +(category_count_columns if category_count_columns else
-            [x for x in table.columns if x.startswith(('perc_','median_','mean_','max_','min_'))])
-            +[x for x in table.columns if x.endswith('_count')])
+            [x for x in cols_tbl if x.startswith(('perc_','median_','mean_','max_','min_'))])
+            +[x for x in cols_tbl if x.endswith('_count')])
 
             pivot_table = table[cols_to_keep]
             
-        cell_id = f"A{link_idx}"
+        if 'macroregion' in pivot_table.columns:
+            pivot_table = pivot_table.sort_values(by='macroregion')    
+
+        cols_to_drop = ['mean','median','min','max']
+        
+        if values_variable == 'count_mean':
+            cols_to_drop = ['mean','median','min','max']+[x for x in cols_tbl if x.startswith(('median_','mean_','max_','min_'))]
+            cols_to_keep = [i for i in pivot_table.columns if i not in cols_to_drop]
+            pivot_table = pivot_table[cols_to_keep]
+            
+        cell_id = link_idx
+        names_id = cell_id+1
+        
         link_idx += len(pivot_table) + 3
-        data_sheet.append([label])
-        data_sheet.append(list(pivot_table.columns))
-        min_col_values = []
-        max_col_values = []
-        for column in pivot_table.columns:
-            min_col_values.append(pivot_table[column].min())
-            max_col_values.append(pivot_table[column].max())
+        
+        column_headers = list(pivot_table.columns)
 
-        for _, row in pivot_table.iterrows():
-            row_id = data_sheet.max_row + 1
-            if values_variable == "perc":
-                
-                for i, value in enumerate(row):
-                    cell = data_sheet.cell(row=row_id, column=i + 1)
-                    cell.value = value
-                    if isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value):
-                        if value <= 1:
-                            cell.number_format = '0.00%'
-                            color = get_color(value)
-                            cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-                            
-                            thin_border = Border(
-                            left=Side(style='thin'),
-                            right=Side(style='thin'),
-                            top=Side(style='thin'),
-                            bottom=Side(style='thin'))
+        data_sheet.write(cell_id, 0, label)
 
-                            cell.border = thin_border
-                            
-            elif values_variable == 'mean' or isinstance(values_variable,list):
-                for i, value in enumerate(row):
-                    cell = data_sheet.cell(row=row_id, column=i + 1)
-                    cell.value = value
-                    
-                    if (isinstance(value, (float, np.float64, np.float32)) and not pd.isna(value))\
-                        and (pivot_table.columns[i] in ['mean', 'median', 'max' ,'min'] or pivot_table.columns[i].startswith(('perc_','median_','mean_','max_','min_'))):
-                        normalized_value = (value - min_col_values[i]) / (max_col_values[i] - min_col_values[i])
+        for col_num, header in enumerate(column_headers):
+            data_sheet.write(names_id, col_num, header)
+        
+
+        for row_num, row in pivot_table.iterrows():
+            for col_num, value in enumerate(row):
+                if pd.isna(value):
+                    data_sheet.write(row_num + 2 +cell_id, col_num, None)
+                else:
+                    data_sheet.write(row_num + 2 +cell_id, col_num, value)
+        
+        #color code the percentages
+        if  values_variable =='perc' or any(str(col).startswith('perc') for col in pivot_table.columns):
+            exclude_prefixes = ['median_','mean_','max_','min_']
+            
+            exclude_columns = ['disaggregations_category_1', 'admin_category', 'option', 
+                            'strata_name', 'raion', 'oblast', 'macroregion',
+                            'mean', 'median', 'max' ,'min',
+                            'count','full_count','weighted_count','unweighted_count','category_count','general_count']
+
+            desired_columns = [col for col in pivot_table.columns if col not in exclude_columns or any(col.startswith(prefix) for prefix in exclude_prefixes)]
                         
-                        color = get_color(normalized_value)
-                        if pivot_table.columns[i].startswith('perc_'):
-                            cell.number_format = '0.00%'
-                            color = get_color(value)
-                            cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-                        else:
-                            if min_col_values[i] == max_col_values[i]:
-                                color = get_color(1)
-                            cell.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+            first_column_index = pivot_table.columns.get_loc(desired_columns[0])
+            last_column_index = pivot_table.columns.get_loc(desired_columns[-1])
+            
+            first_cell = f"{col_num_to_excel(first_column_index)}{names_id+2}"
+            last_cell = f"{col_num_to_excel(last_column_index)}{len(pivot_table)+names_id+1}"
+            
+            if color_cells:
+                data_sheet.conditional_format(f"{first_cell}:{last_cell}", 
+                                            {'type':'3_color_scale',
+                                            'min_value': 0,
+                                            'max_value': 1})
 
-                        thin_border = Border(
-                            left=Side(style='thick'),
-                            right=Side(style='thick'),
-                            top=Side(style='thin'),
-                            bottom=Side(style='thin')
-                        )
+            data_sheet.conditional_format(f"{first_cell}:{last_cell}", {'type': 'cell',
+                                        'criteria': '<=',
+                                        'value': 1, 'format': percent_format})
+            
+            data_sheet.conditional_format( f"{first_cell}:{last_cell}" ,
+                                { 'type' : 'no_blanks' ,
+                                'format' : border_format} )
+            
+        elif  values_variable =='mean' or any(str(col).startswith('mean_') for col in pivot_table.columns):
+            desired_columns =   [col for col in pivot_table.columns if str(col).startswith(('mean_','median_','max_','min_')) or col in ['mean','median','max','min']]         
 
-                        cell.border = thin_border
-            else:    
-                data_sheet.append(list(row))
-        data_sheet.append([])
+            first_column_index = pivot_table.columns.get_loc(desired_columns[0])
+            last_column_index = pivot_table.columns.get_loc(desired_columns[-1])
+            
+            first_cell = f"{col_num_to_excel(first_column_index)}{names_id+2}"
+            last_cell = f"{col_num_to_excel(last_column_index)}{len(pivot_table)+names_id+1}"
+            
+            data_sheet.conditional_format(f"{first_cell}:{last_cell}", 
+                                          {'type': 'cell',
+                                           'criteria': '>=',
+                                           'value': 0,
+                                           'format': round_format})
+            if color_cells:
+                for des_col in desired_columns:
+                    max_val = max(pivot_table[des_col])
+                    min_val = min(pivot_table[des_col])
+                    
+                    column_index = pivot_table.columns.get_loc(des_col)
+                    
+                    
+                    first_cell_c = f"{col_num_to_excel(column_index)}{names_id+2}"
+                    last_cell_c = f"{col_num_to_excel(column_index)}{len(pivot_table)+names_id+1}"
+                    data_sheet.conditional_format(f"{first_cell_c}:{last_cell_c}", 
+                                    {'type':'3_color_scale',
+                                    'min_value': min_val,
+                                    'max_value': max_val})
+
+                data_sheet.conditional_format( f"{first_cell}:{last_cell}" ,
+                                                { 'type' : 'no_blanks' ,
+                                                'format' : border_format} )
+                                
+        
 
         if isinstance(values_variable,list):
             link_value = '' #', '.join(values_variable)
         else:
             link_value = values_variable
             
-        text_on_link = label + ' ' + link_value
+        text_on_link = f"{label} {link_value}"
         if len(text_on_link)>150:
             text_on_link= text_on_link[:150]+'...'
-            
-        link_text = f'=HYPERLINK("#\'Data\'!{cell_id}", "{text_on_link}")'
-        content_sheet.cell(row=idx + 2, column=2, value=link_text)
-        content_sheet.cell(row=idx + 2, column=1, value=ID)
-        content_sheet.cell(row=idx + 2, column=3, value=significance)
+        
+        link_text = f'=HYPERLINK("#\'Data\'!A{cell_id+1}", "{text_on_link}")'
+        
+        content_sheet.write(idx+1, 0, ID)
+        content_sheet.write(idx+1, 1, link_text,bold)
+        content_sheet.write(idx+1, 2, significance)
 
-    for col_idx, column in enumerate(data_sheet.columns, 1):
-        if col_idx == 1:
-            data_sheet.column_dimensions[column[0].column_letter].width = 30
-        else:
-            data_sheet.column_dimensions[column[0].column_letter].width = 20
-
-    content_sheet.column_dimensions['B'].width = 40
-    for cell in content_sheet["B"][1:]:
-        cell.font = Font(bold=True, color="FF0000FF")
-    for cell in content_sheet["A"][1:]:
-        cell.font = Font(bold=True)
-
-    workbook.save(file_name)
-    return workbook
+        
+    data_sheet.autofit()
+    data_sheet.set_column_pixels(0, 0, 150)
+    workbook.close()
 
 
 def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey,label_colname, check_significance, weight_column=None):

@@ -280,10 +280,9 @@ concatenated_df.loc[:,disagg_columns] = concatenated_df[disagg_columns].fillna('
 
 # Join tables if needed
 print('Joining tables if such was specified')
-disaggregations_perc_new = disaggregations_perc.copy()
-disaggregations_count_new  = disaggregations_count.copy()
-disaggregations_count_w_new  = disaggregations_count_w.copy()
-
+disaggregations_perc_new = deepcopy(disaggregations_perc)
+disaggregations_count_new = deepcopy(disaggregations_count)
+disaggregations_count_w_new = deepcopy(disaggregations_count_w)
 
 for data_frame in [disaggregations_perc_new,disaggregations_count_new,disaggregations_count_w_new]:
 # check if any joining is needed
