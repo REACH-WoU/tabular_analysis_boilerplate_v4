@@ -65,6 +65,9 @@ for sheet_name in sheets:
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
+daf['variable_label'] = daf['variable_label'].str.replace('"', "'")
+daf['disaggregations_label'] = daf['disaggregations_label'].str.replace('"', "'")
+
 colnames_daf = set(['ID','variable','variable_label',
                     'calculation','func','admin','disaggregations','disaggregations_label','join'])
 
