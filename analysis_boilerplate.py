@@ -29,7 +29,7 @@ label_colname = 'label::English' # the name of your label::English column. Must 
 weighting_column = 'weight' # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
 
 sign_check = True # should the script check the significance of the tables?
-
+color_add = True  # should the final output have colored cells?
 # end of the input section #
 
 # load the frames
@@ -393,7 +393,7 @@ disaggregations_count_w_new = sorted(disaggregations_count_w_new, key=lambda x: 
 disaggregations_count_new = sorted(disaggregations_count_new, key=lambda x: x[1])
 
 # construct the tables now
-construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False)
+construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False, color_cells= color_add)
 if weighting_column != None:
   construct_result_table(disaggregations_count_w_new, filename_toc_count_w,make_pivot_with_strata = False)
 construct_result_table(disaggregations_count_new, filename_toc_count,make_pivot_with_strata = False)
