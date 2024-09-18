@@ -622,6 +622,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 # break down the data form SM
                 if daf_final_freq.iloc[i]['q.type'] in ['select_multiple']:
+                    # set up a temp ID column as an alternative for uuid for removal of non-unique entries later on
+                    data_temp['ID_column'] = data_temp.index
                     data_temp.loc[:, daf_final_freq.iloc[i]['variable']
                                   ] = data_temp[daf_final_freq.iloc[i]['variable']].str.strip()
 
@@ -630,7 +632,10 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     # Separate rows using explode
                     data_temp = data_temp.explode(
                         daf_final_freq.iloc[i]['variable'], ignore_index=True)
-
+                    # just in case somebody has duplicated entries within the select multiple
+                    data_temp.drop_duplicates(inplace = True)
+                    data_temp.drop('ID_column', axis =1, inplace = True)
+                    
                 groupby_columns = [daf_final_freq['admin'][i]] + \
                     disaggregations+[daf_final_freq['variable'][i]]
                 # check significance if such was specified
@@ -706,8 +711,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 summary_stats = data_temp.groupby(groupby_columns)[
                     weight_column].agg(['sum', 'count'])
-                summary_stats.rename(
-                    columns={'count': 'unweighted_count'}, inplace=True)
+
                 # get the same stats but for the full subsample (not calculating option samples)
                 groupby_columns_ov = [
                     daf_final_freq['admin'][i]]+disaggregations
@@ -719,6 +723,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 summary_stats_var_om.reset_index(inplace=True)
 
                 # rename them
+                summary_stats.rename(
+                    columns={'count': 'unweighted_count'}, inplace=True)
                 summary_stats.rename(
                     columns={'sum': 'weighted_count'}, inplace=True)
                 summary_stats_var_om.rename(

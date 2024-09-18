@@ -3,7 +3,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 # enter that path do your data
-excel_path_data = 'data/test_frame.xlsx'
+excel_path_data = 'data/MSNA2403_2024_data.xlsx'
 
 data = pd.read_excel(excel_path_data, sheet_name=None)
 sheets = list(data.keys())
