@@ -320,7 +320,6 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
     # Define formatting
     
     percent_format = workbook.add_format({"num_format": "0.00%"})
-    
     round_format = workbook.add_format({"num_format": "0.00"})
 
     bold = workbook.add_format({'bold': True})
@@ -386,12 +385,14 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 if 'general_count' in cols_tbl:
                     pivot_columns.append('general_count')
 
-                    
+                options_column = table["option"].unique()
+
                 pivot_table = make_pivot(
                     table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
+                
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
-
+                
                 total_row = pivot_table[
                     (pivot_table['disaggregations_category_1'] == 'Total') & 
                     (pivot_table['admin_category'] == 'Total')
@@ -413,6 +414,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                     pivot_table = pivot_table.sort_values(
                         by='macroregion'
                     )
+
         elif values_variable == 'count_mean':
             table = table.reset_index(drop = True)
             cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc','min','max','median','mean']
@@ -471,13 +473,23 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         for col_num, header in enumerate(column_headers):
             data_sheet.write(names_id, col_num, header)
         
-
         for row_num, row in pivot_table.iterrows():
-            for col_num, value in enumerate(row):
-                if pd.isna(value):
-                    data_sheet.write(row_num + 2 +cell_id, col_num, None)
+            for col_num, (column_name, value) in enumerate(row.items()):
+                if column_name not in ['disaggregations_category_1', 'admin_category', 'option', 
+                            'strata_name', 'raion', 'oblast', 'macroregion',
+                            'mean', 'median', 'max' ,'min',
+                            'count','full_count','weighted_count','unweighted_count','category_count','general_count'] \
+                        and values_variable not in ["mean", "count_mean", "value"]:
+                    if pd.isna(value):
+                        data_sheet.write(row_num + 2 +cell_id, col_num, None, percent_format)
+                    else:
+                        data_sheet.write(row_num + 2 +cell_id, col_num, value, percent_format)
+                
                 else:
-                    data_sheet.write(row_num + 2 +cell_id, col_num, value)
+                    if pd.isna(value):
+                        data_sheet.write(row_num + 2 +cell_id, col_num, None)
+                    else:
+                        data_sheet.write(row_num + 2 +cell_id, col_num, value)
         
         #color code the percentages
         if  values_variable =='perc' or any(str(col).startswith('perc') for col in pivot_table.columns):
@@ -504,7 +516,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
 
             data_sheet.conditional_format(f"{first_cell}:{last_cell}", {'type': 'cell',
                                         'criteria': '<=',
-                                        'value': 1, 'format': percent_format})
+                                        'value': 1})
             
             data_sheet.conditional_format( f"{first_cell}:{last_cell}" ,
                                 { 'type' : 'no_blanks' ,
