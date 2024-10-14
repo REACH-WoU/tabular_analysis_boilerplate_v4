@@ -28,6 +28,8 @@ excel_path_tool = 'resources/MSNA_2024_Kobo_tool_F2F.xlsx' # the path to your ko
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
 weighting_column = 'weight' # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
 
+sort_by_total = False # Sort choices columns for categorical by "Total" values
+
 sign_check = True # should the script check the significance of the tables?
 color_add = True  # should the final output have colored cells?
 # end of the input section #
@@ -393,7 +395,7 @@ disaggregations_count_w_new = sorted(disaggregations_count_w_new, key=lambda x: 
 disaggregations_count_new = sorted(disaggregations_count_new, key=lambda x: x[1])
 
 # construct the tables now
-construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False, color_cells= color_add)
+construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False, color_cells= color_add, sort_by_total=sort_by_total)
 if weighting_column != None:
   construct_result_table(disaggregations_count_w_new, filename_toc_count_w,make_pivot_with_strata = False)
 construct_result_table(disaggregations_count_new, filename_toc_count,make_pivot_with_strata = False)
