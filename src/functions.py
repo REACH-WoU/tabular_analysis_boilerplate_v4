@@ -391,6 +391,23 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                     table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
+
+                total_row = pivot_table[
+                    (pivot_table['disaggregations_category_1'] == 'Total') & 
+                    (pivot_table['admin_category'] == 'Total')
+                ]
+                
+                if not total_row.empty:
+                    total_values = total_row[options_column].iloc[0]
+
+                    column_value_pairs = list(zip(options_column, total_values))
+                    sorted_column_value_pairs = sorted(column_value_pairs, key=lambda x: x[1], reverse=True)
+
+                    sorted_columns = [col for col, _ in sorted_column_value_pairs if col in pivot_table.columns]
+
+                    pivot_table_columns = [col for col in pivot_table.columns if col not in sorted_columns]
+
+                    pivot_table = pivot_table[pivot_table_columns + sorted_columns]
                 
                 if 'macroregion' in pivot_table.columns:
                     pivot_table = pivot_table.sort_values(
