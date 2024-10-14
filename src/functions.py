@@ -479,7 +479,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                             'strata_name', 'raion', 'oblast', 'macroregion',
                             'mean', 'median', 'max' ,'min',
                             'count','full_count','weighted_count','unweighted_count','category_count','general_count'] \
-                        and values_variable not in ["mean", "count_mean", "value"]:
+                        and values_variable not in ["mean", "count_mean", "value", "category_count"]:
                     if pd.isna(value):
                         data_sheet.write(row_num + 2 +cell_id, col_num, None, percent_format)
                     else:
