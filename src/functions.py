@@ -396,10 +396,13 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
                 
                 if sort_by_total:
-                    total_row = pivot_table[
-                        (pivot_table['disaggregations_category_1'] == 'Total') & 
-                        (pivot_table['admin_category'] == 'Total')
-                    ]
+                    if "disaggregations_category_1" in pivot_table.columns:
+                        total_row = pivot_table[
+                            (pivot_table['disaggregations_category_1'] == 'Total') & 
+                            (pivot_table['admin_category'] == 'Total')
+                        ]
+                    else:
+                        total_row = pivot_table[(pivot_table['admin_category'] == 'Total')]
                     
                     if not total_row.empty:
                         total_values = total_row[options_column].iloc[0]
