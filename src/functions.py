@@ -309,7 +309,7 @@ def col_num_to_excel(col_num):
         return col_num_to_excel(col_num // 26 - 1) + letters[col_num % 26]
 
 
-def construct_result_table(tables_list, file_name, make_pivot_with_strata=False, color_cells=True):
+def construct_result_table(tables_list, file_name, make_pivot_with_strata=False, color_cells=True, sort_by_total=False):
     
     workbook = xlsxwriter.Workbook(file_name)
     
@@ -393,22 +393,23 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
                 
-                total_row = pivot_table[
-                    (pivot_table['disaggregations_category_1'] == 'Total') & 
-                    (pivot_table['admin_category'] == 'Total')
-                ]
-                
-                if not total_row.empty:
-                    total_values = total_row[options_column].iloc[0]
+                if sort_by_total:
+                    total_row = pivot_table[
+                        (pivot_table['disaggregations_category_1'] == 'Total') & 
+                        (pivot_table['admin_category'] == 'Total')
+                    ]
+                    
+                    if not total_row.empty:
+                        total_values = total_row[options_column].iloc[0]
 
-                    column_value_pairs = list(zip(options_column, total_values))
-                    sorted_column_value_pairs = sorted(column_value_pairs, key=lambda x: x[1], reverse=True)
+                        column_value_pairs = list(zip(options_column, total_values))
+                        sorted_column_value_pairs = sorted(column_value_pairs, key=lambda x: x[1], reverse=True)
 
-                    sorted_columns = [col for col, _ in sorted_column_value_pairs if col in pivot_table.columns]
+                        sorted_columns = [col for col, _ in sorted_column_value_pairs if col in pivot_table.columns]
 
-                    pivot_table_columns = [col for col in pivot_table.columns if col not in sorted_columns]
+                        pivot_table_columns = [col for col in pivot_table.columns if col not in sorted_columns]
 
-                    pivot_table = pivot_table[pivot_table_columns + sorted_columns]
+                        pivot_table = pivot_table[pivot_table_columns + sorted_columns]
                 
                 if 'macroregion' in pivot_table.columns:
                     pivot_table = pivot_table.sort_values(
@@ -472,7 +473,6 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
 
         for col_num, header in enumerate(column_headers):
             data_sheet.write(names_id, col_num, header)
-        
         for row_num, row in pivot_table.iterrows():
             for col_num, (column_name, value) in enumerate(row.items()):
                 if column_name not in ['disaggregations_category_1', 'admin_category', 'option', 
