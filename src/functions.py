@@ -266,12 +266,14 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
 
     return daf
 
+    
 
 def custom_sort_key(value):
-    if value in 'Total' and isinstance(value, str):
-        return 'zzzzzzzzzzz'  # This super dumb but it works
+    
+    if isinstance(value, str) and 'Total' in value:
+        return (1, value)
     else:
-        return value
+        return (0, value)
 
 
 def make_pivot(table, index_list, column_list, value):
@@ -415,6 +417,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                     pivot_table = pivot_table.sort_values(
                         by='macroregion'
                     )
+                    
+                pivot_table.reset_index(drop=True, inplace=True)
 
         elif values_variable == 'count_mean':
             table = table.reset_index(drop = True)
@@ -1123,3 +1127,4 @@ def key_creator(row):
     combined_disaggs = [f"{row[basic]}%/%{row[dem]}" for basic, dem in zip(cat_basic, cat_dem) if not pd.isna(row[basic]) and not pd.isna(row[dem])]
     bit_4_disaggs = '-/-'.join(combined_disaggs)
     return bit_1_gen +'@/@' +row['variable_orig'] + bit_2_option + bit_3_admin + '-/-'+bit_4_disaggs
+    
