@@ -266,14 +266,12 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
 
     return daf
 
-    
 
 def custom_sort_key(value):
-    
-    if isinstance(value, str) and 'Total' in value:
-        return (1, value)
+    if value in 'Total' and isinstance(value, str):
+        return 'zzzzzzzzzzz'  # This super dumb but it works
     else:
-        return (0, value)
+        return value
 
 
 def make_pivot(table, index_list, column_list, value):
@@ -311,7 +309,7 @@ def col_num_to_excel(col_num):
         return col_num_to_excel(col_num // 26 - 1) + letters[col_num % 26]
 
 
-def construct_result_table(tables_list, file_name, make_pivot_with_strata=False, color_cells=True, sort_by_total=False):
+def construct_result_table(tables_list, file_name, make_pivot_with_strata=False, color_cells=True, sort_by_total=False, conditional_formating=True):
     
     workbook = xlsxwriter.Workbook(file_name)
     
@@ -420,8 +418,6 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                     pivot_table = pivot_table.sort_values(
                         by='macroregion'
                     )
-                    
-                pivot_table.reset_index(drop=True, inplace=True)
 
         elif values_variable == 'count_mean':
             table = table.reset_index(drop = True)
@@ -485,12 +481,13 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 if column_name not in ['disaggregations_category_1', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion',
                             'mean', 'median', 'max' ,'min',
-                            'count','full_count','weighted_count','unweighted_count','category_count','general_count'] \
-                        and values_variable not in ["mean", "count_mean", "value", "category_count"]:
+                            'count','full_count','weighted_count','unweighted_count','category_count','general_count']:
                     if pd.isna(value):
-                        data_sheet.write(row_num + 2 +cell_id, col_num, None, percent_format)
-                    else:
+                        data_sheet.write(row_num + 2 +cell_id, col_num, None)
+                    elif values_variable not in ["mean", "count_mean", "value", "category_count"]:
                         data_sheet.write(row_num + 2 +cell_id, col_num, value, percent_format)
+                    else:
+                        data_sheet.write(row_num + 2 +cell_id, col_num, value, round_format)
                 
                 else:
                     if pd.isna(value):
@@ -515,19 +512,15 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             first_cell = f"{col_num_to_excel(first_column_index)}{names_id+2}"
             last_cell = f"{col_num_to_excel(last_column_index)}{len(pivot_table)+names_id+1}"
             
-            if color_cells:
+            if color_cells and conditional_formating:
                 data_sheet.conditional_format(f"{first_cell}:{last_cell}", 
                                             {'type':'3_color_scale',
                                             'min_value': 0,
                                             'max_value': 1})
-
-            data_sheet.conditional_format(f"{first_cell}:{last_cell}", {'type': 'cell',
-                                        'criteria': '<=',
-                                        'value': 1})
-            
-            data_sheet.conditional_format( f"{first_cell}:{last_cell}" ,
-                                { 'type' : 'no_blanks' ,
-                                'format' : border_format} )
+            if conditional_formating:
+                data_sheet.conditional_format( f"{first_cell}:{last_cell}" ,
+                                    { 'type' : 'no_blanks' ,
+                                    'format' : border_format} )
             
         elif  values_variable =='mean' or any(str(col).startswith('mean_') for col in pivot_table.columns):
             desired_columns =   [col for col in pivot_table.columns if str(col).startswith(('mean_','median_','max_','min_')) or col in ['mean','median','max','min']]         
@@ -538,12 +531,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             first_cell = f"{col_num_to_excel(first_column_index)}{names_id+2}"
             last_cell = f"{col_num_to_excel(last_column_index)}{len(pivot_table)+names_id+1}"
             
-            data_sheet.conditional_format(f"{first_cell}:{last_cell}", 
-                                          {'type': 'cell',
-                                           'criteria': '>=',
-                                           'value': 0,
-                                           'format': round_format})
-            if color_cells:
+            if color_cells and conditional_formating:
                 for des_col in desired_columns:
                     max_val = max(pivot_table[des_col])
                     min_val = min(pivot_table[des_col])
@@ -582,6 +570,9 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         
     data_sheet.autofit()
     data_sheet.set_column_pixels(0, 0, 150)
+    for col in range(26):
+        data_sheet.set_column(col, col, 30)
+    
     workbook.close()
 
 
