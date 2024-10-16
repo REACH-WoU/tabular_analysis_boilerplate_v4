@@ -29,6 +29,7 @@ label_colname = 'label::English' # the name of your label::English column. Must 
 weighting_column = 'weight' # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
 
 sort_by_total = False # Sort choices columns for categorical by "Total" values
+conditional_formating = True # You can disable conditional formating(colors and borders) if your files so big or you don't need it
 
 sign_check = True # should the script check the significance of the tables?
 color_add = True  # should the final output have colored cells?
@@ -395,11 +396,11 @@ disaggregations_count_w_new = sorted(disaggregations_count_w_new, key=lambda x: 
 disaggregations_count_new = sorted(disaggregations_count_new, key=lambda x: x[1])
 
 # construct the tables now
-construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False, color_cells= color_add, sort_by_total=sort_by_total)
+construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_strata = False, color_cells= color_add, sort_by_total=sort_by_total, conditional_formating=conditional_formating)
 if weighting_column != None:
-  construct_result_table(disaggregations_count_w_new, filename_toc_count_w,make_pivot_with_strata = False)
-construct_result_table(disaggregations_count_new, filename_toc_count,make_pivot_with_strata = False)
-construct_result_table(disaggregations_perc_new, filename_wide_toc,make_pivot_with_strata = True)
+  construct_result_table(disaggregations_count_w_new, filename_toc_count_w,make_pivot_with_strata = False, conditional_formating=conditional_formating)
+construct_result_table(disaggregations_count_new, filename_toc_count,make_pivot_with_strata = False, conditional_formating=conditional_formating)
+construct_result_table(disaggregations_perc_new, filename_wide_toc,make_pivot_with_strata = True, conditional_formating=conditional_formating)
 concatenated_df.to_excel(filename_dash, index=False)
 concatenated_df_orig.to_excel(filename_key, index=False)
 print('All done. Congratulations')
