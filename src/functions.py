@@ -70,6 +70,24 @@ def load_tool_survey(filename_tool, label_colname, keep_cols=False):
 
 
 def map_names(column_name, column_values_name, summary_table, tool_survey, tool_choices,label_col, na_include=False):
+        
+    """
+    Maps the values in the `summary_table` column (specified by `column_values_name`) to corresponding labels
+    found in `tool_choices`. The mapping is based on a survey structure found in `tool_survey`.
+
+    Args:
+        column_name (str): The name of the column in `summary_table` whose first value matches a corresponding list in `tool_survey`.
+        column_values_name (str): The name of the column in `summary_table` whose values will be mapped to corresponding labels.
+        summary_table (pd.DataFrame): The data table containing the columns to be mapped.
+        tool_survey (pd.DataFrame): The survey structure containing the mapping of column names to list names.
+        tool_choices (pd.DataFrame): The choices structure containing possible options (list_name) and their corresponding labels.
+        label_col (str): The name of the column in `tool_choices` that contains the labels for mapping.
+        na_include (bool, optional): Whether to include an additional mapping for missing values ('No data available (NA)'). Defaults to False.
+
+    Returns:
+        pd.DataFrame: The updated `summary_table` with the values in `column_values_name` mapped to corresponding labels.
+    """
+    
     choices_shortlist = tool_choices[
         tool_choices['list_name'].values == tool_survey[tool_survey['name']
                                                         == summary_table[column_name][0]]['list_name'].values
@@ -756,6 +774,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     columns={'sum': 'weighted_count'}, inplace=True)
                 summary_stats_var_om.rename(
                     columns={'sum': 'general_count'}, inplace=True)
+                summary_stats_var_om.rename(
+                    columns={'count': 'general_count_uw'}, inplace=True)
 
                 summary_stats_full = summary_stats.merge(
                     summary_stats_var_om, on=groupby_columns_ov, how='left')
@@ -885,7 +905,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 summary_stats_full['total_count_perc'] = round((summary_stats_full['full_count']/total_nrow)*100,2)
                 columns = ['ID', 'admin', 'admin_category', 'option',
                             'variable'] + disagg_columns + ['weighted_count','unweighted_count','perc',
-                                                            'general_count', 'full_count','total_count_perc']+ og_columns
+                                                            'general_count','general_count_uw', 'full_count','total_count_perc']+ og_columns
                     
                 summary_stats_full = summary_stats_full[columns]
                 df_list.append(

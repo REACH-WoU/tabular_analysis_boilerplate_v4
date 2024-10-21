@@ -30,9 +30,9 @@ weighting_column = 'weight' # add the name of your weight column or write None (
 
 sort_by_total = False # Sort choices columns for categorical by "Total" values
 conditional_formating = True # You can disable conditional formating(colors and borders) if your files so big or you don't need it
+color_add = True  # should the final output have colored cells?
 
 sign_check = True # should the script check the significance of the tables?
-color_add = True  # should the final output have colored cells?
 # end of the input section #
 
 # load the frames
@@ -216,16 +216,20 @@ disaggregations_count_w = deepcopy(disaggregations_full) # weighted count table
 # remove counts prom perc table
 for element in disaggregations_perc:
   if isinstance(element[0], pd.DataFrame):  
-    columns_to_drop = ['category_count', 'weighted_count', 'unweighted_count']
+    columns_to_drop = ['category_count', 'weighted_count', 'unweighted_count','general_count']
     # Drop each column if it exists in the DataFrame
     for column in columns_to_drop:
       if column in element[0].columns:
         element[0].drop(columns=column, inplace=True)
+    # rename the unweighted count column
+    element[0].rename(columns={'general_count_uw': 'general_count'}, inplace=True)
+
+
 
 # remove perc columns from weighted count table
 for element in disaggregations_count_w:
   if isinstance(element[0], pd.DataFrame):  
-    columns_to_drop = ['perc', 'unweighted_count']
+    columns_to_drop = ['perc', 'unweighted_count','general_count_uw']
     for column in columns_to_drop:
       if column in element[0].columns:
         element[0].drop(columns=column, inplace=True)
@@ -234,11 +238,12 @@ for element in disaggregations_count_w:
 # remove perc columns from unweighted count table
 for element in disaggregations_count:
   if isinstance(element[0], pd.DataFrame):  
-    columns_to_drop = ['perc', 'weighted_count']
+    columns_to_drop = ['perc', 'weighted_count','general_count']
     for column in columns_to_drop:
       if column in element[0].columns:
         element[0].drop(columns=column, inplace=True)
     element[0].rename(columns={'unweighted_count': 'category_count'}, inplace=True)
+    element[0].rename(columns={'general_count_uw': 'general_count'}, inplace=True)
 
 
 # Get the columns for Analysis key table 
