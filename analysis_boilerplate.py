@@ -53,6 +53,7 @@ sheets = list(data.keys())
 if 'main' not in sheets:
   raise ValueError('One of your sheets (primary sheet) has to be called `main`, please fix.')
 
+# load the tools
 tool_choices = load_tool_choices(filename_tool = excel_path_tool,label_colname=label_colname)
 tool_survey = load_tool_survey(filename_tool = excel_path_tool,label_colname=label_colname)
 
@@ -68,9 +69,13 @@ for sheet_name in sheets:
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
+
+
+# remove the unnecessary quotes
 daf['variable_label'] = daf['variable_label'].str.replace('"', "'")
 daf['disaggregations_label'] = daf['disaggregations_label'].str.replace('"', "'")
 
+# check if all columns are present
 colnames_daf = set(['ID','variable','variable_label',
                     'calculation','func','admin','disaggregations','disaggregations_label','join'])
 
@@ -83,14 +88,24 @@ if not colnames_daf.issubset(daf.columns):
 for column in ['variable','admin','calculation','func','disaggregations']:
   daf[column] = daf[column].apply(lambda x: x.strip() if isinstance(x, str) else x)
 
-
+# check if disaggregation and variable are repeating anywhere
 if any(daf['variable']==daf['disaggregations']):
   problematic_ids_str = ', '.join(str(id) for id in daf.loc[daf['variable'] == daf['disaggregations'], 'ID'])
   raise ValueError(f'Variable and disaggregation are duplicated, problematic IDs: ' + \
     problematic_ids_str)
 
+if any(daf['variable']==daf['admin']):
+  problematic_ids_str = ', '.join(str(id) for id in daf.loc[daf['variable'] == daf['admin'], 'ID'])
+  raise ValueError(f'Variable and admin are duplicated, problematic IDs: ' + \
+    problematic_ids_str)
+
+if any(daf['disaggregations']==daf['admin']):
+  problematic_ids_str = ', '.join(str(id) for id in daf.loc[daf['disaggregations'] == daf['admin'], 'ID'])
+  raise ValueError(f'Disaggregations and admin are duplicated, problematic IDs: ' + \
+    problematic_ids_str)
 
 
+# check if any of the functions are wrong
 wrong_functions = set(daf['func'])-{'mean','numeric','select_one','select_multiple','freq'}
 if len(wrong_functions)>0:
   raise ValueError(f'Wrong functions entered: '+str(wrong_functions)+'. Please fix your function entries')
@@ -130,8 +145,10 @@ if duplicates_frame[duplicates_frame==True].shape[0] >0:
 
 daf_merged = daf.merge(names_data,on='variable', how = 'left')
 
+# Additional DAF checks
 daf_merged = check_daf_consistency(daf_merged, data, sheets, resolve=False)
 
+# Check if you have duplicated IDs in the DAF
 IDs = daf_merged['ID'].duplicated()
 if any(IDs):
   raise ValueError('Duplicate IDs in the ID column of the DAF')
@@ -149,8 +166,15 @@ print('Checking your filter page and building the filter dictionary')
 
 filter_daf = pd.read_excel(excel_path_daf, sheet_name="filter")
 
+
 if filter_daf.shape[0]>0:
-  check_daf_filter(daf =daf_merged, data = data,filter_daf=filter_daf, tool_survey=tool_survey, tool_choices=tool_choices)
+  # just in case there are unnecessary spaces anywhere
+  for col in filter_daf.columns:
+    if col != 'ID':
+      filter_daf[col] = filter_daf[col].str.replace(' ', '')
+      filter_daf[col] = filter_daf[col].str.replace("'", '')
+      
+  check_daf_filter(daf =daf_merged, data = data,filter_daf=filter_daf, tool_survey=tool_survey)
   # Create filter dictionary object 
   filter_daf_full = filter_daf.merge(daf_merged[['ID','datasheet']], on = 'ID',how = 'left')
 
@@ -181,12 +205,11 @@ if filter_daf.shape[0]>0:
 else:
   filter_dict = {}
 
-
 # Check the weights just in case
 if weighting_column in ['None','none']:
   weighting_column = None
 
-# Chekc if there's an issue with any of the weights
+# Check if there's an issue with any of the weights
 if weighting_column is not None:
   for sheet_name in sheets:
     if data[sheet_name][weighting_column].isnull().sum().any():
@@ -203,7 +226,7 @@ disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_
 
 
 disaggregations_orig = deepcopy(disaggregations_full) # analysis key table
-
+# remove the orig columns. We won't need them
 for element in disaggregations_full:
   if isinstance(element[0], pd.DataFrame):  
     if all(column in element[0].columns for column in element[0].columns if column.endswith('orig')):
@@ -267,6 +290,7 @@ concatenated_df_orig = concatenated_df_orig.merge(daf_final[['ID','q.type']], on
 
 concatenated_df_orig['key'] = concatenated_df_orig.apply(key_creator, axis=1)
 
+# Add a single value for the perc column - we don't need a split between percs and means
 if 'mean' in concatenated_df_orig.columns:
   if 'perc' in concatenated_df_orig.columns:
     concatenated_df_orig['perc'] = concatenated_df_orig['perc'].fillna(concatenated_df_orig['mean'])

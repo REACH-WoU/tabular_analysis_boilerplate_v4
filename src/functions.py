@@ -14,6 +14,32 @@ warnings.filterwarnings(
 
 
 def load_tool_choices(filename_tool, label_colname, keep_cols=False):
+    
+    """
+    Loads and processes the 'choices' sheet from a KoboToolbox tool Excel file.
+    
+    Parameters:
+    ----------
+    filename_tool : str
+        The file path of the Excel file containing the tool.
+        The file should contain a sheet named 'choices'.
+        
+    label_colname : str
+        The name of the column in the 'choices' sheet that contains
+        the labels or text you want to extract.
+        
+    keep_cols : bool, optional
+        If True, keeps all columns from the 'choices' sheet.
+        If False (default), only keeps the 'list_name', 'name',
+        and the column specified by `label_colname`.
+
+    Returns:
+    -------
+    pandas.DataFrame
+        A DataFrame containing the cleaned and processed 'choices' data,
+        filtered to include only the selected columns (if `keep_cols` is False).
+    """
+    
     tool_choices = pd.read_excel(
         filename_tool, sheet_name="choices", dtype="str")
 
@@ -33,6 +59,35 @@ def load_tool_choices(filename_tool, label_colname, keep_cols=False):
 
 
 def load_tool_survey(filename_tool, label_colname, keep_cols=False):
+    
+    """
+    Loads and processes the 'survey' sheet from a KoboToolbox tool Excel file.
+    Extracts relevant columns based on language and type of questions, and 
+    identifying the datasheet each question belongs to.
+
+    Parameters:
+    ----------
+    filename_tool : str
+        The file path of the Excel file containing the tool.
+        The file should contain a sheet named 'survey'.
+        
+    label_colname : str
+        The name of the column containing the labels in a specific language (e.g., 'label::English').
+        Used to filter columns based on language.
+        
+    keep_cols : bool, optional
+        If True, all columns from the 'survey' sheet will be retained.
+        If False (default), only specific columns such as label, hint, and required message 
+        (for the specified language) are kept.
+
+    Returns:
+    -------
+    pandas.DataFrame
+        A DataFrame containing the cleaned and processed 'survey' data, 
+        including relevant question types (e.g., 'select_one', 'select_multiple', 'integer', 'decimal'), 
+        filtered columns based on the specified language, and the datasheet each question belongs to.
+    """
+    
     tool_survey = pd.read_excel(
         filename_tool, sheet_name="survey", dtype="str")
 
@@ -75,70 +130,164 @@ def map_names(column_name, column_values_name, summary_table, tool_survey, tool_
     Maps the values in the `summary_table` column (specified by `column_values_name`) to corresponding labels
     found in `tool_choices`. The mapping is based on a survey structure found in `tool_survey`.
 
-    Args:
-        column_name (str): The name of the column in `summary_table` whose first value matches a corresponding list in `tool_survey`.
-        column_values_name (str): The name of the column in `summary_table` whose values will be mapped to corresponding labels.
+    Parameters:
+    -------
+        column_name (str): The name of the column in `summary_table` whose first value 
+        matches a corresponding list in `tool_survey`.
+        
+        column_values_name (str): The name of the column in `summary_table` whose values
+        will be mapped to corresponding labels.
+        
         summary_table (pd.DataFrame): The data table containing the columns to be mapped.
-        tool_survey (pd.DataFrame): The survey structure containing the mapping of column names to list names.
-        tool_choices (pd.DataFrame): The choices structure containing possible options (list_name) and their corresponding labels.
+        
+        tool_survey (pd.DataFrame): The survey structure containing the mapping 
+        of column names to list names.
+        
+        tool_choices (pd.DataFrame): The choices structure containing possible options 
+        (list_name) and their corresponding labels.
+        
         label_col (str): The name of the column in `tool_choices` that contains the labels for mapping.
-        na_include (bool, optional): Whether to include an additional mapping for missing values ('No data available (NA)'). Defaults to False.
+        
+        na_include (bool, optional): Whether to include an additional mapping for missing values 
+        ('No data available (NA)'). Defaults to False.
 
     Returns:
+    -------
         pd.DataFrame: The updated `summary_table` with the values in `column_values_name` mapped to corresponding labels.
     """
     
+    # get the shortlist of choices per variable
     choices_shortlist = tool_choices[
         tool_choices['list_name'].values == tool_survey[tool_survey['name']
                                                         == summary_table[column_name][0]]['list_name'].values
     ][['name', label_col]]
+    # build a dictionary
     mapping_dict = dict(
         zip(choices_shortlist['name'], choices_shortlist[label_col]))
+    # add an NA entry to the dictionary if the parameter was chosen
     if na_include is True:
         mapping_dict['No_data_available_NA'] = 'No data available (NA)'
+    # if something was missing from the tool, it will be its own label
     for value in summary_table[column_values_name]:
         if value not in mapping_dict:
             mapping_dict[value] = value
     # None breaks everything. Trying to change it
     mapping_dict['none'] = 'None '
+    # add the _orig column with base names
     summary_table[column_values_name+'_orig']=summary_table[column_values_name].copy()
+    # add the correct labels to the output table
     summary_table[column_values_name] = summary_table[column_values_name].map(
         mapping_dict)
     return summary_table
 
 
 def map_names_ls(column_name, values_list, tool_survey, tool_choices,label_col, na_include=False):
+    
+    """
+    Maps a list of values to corresponding labels from the 'choices' sheet in a KoboToolbox tool,
+    based on a specified column in the 'survey' sheet. Is only used in the significance checks
+
+    Parameters:
+    ----------
+    column_name : str
+        The name of the column in the 'survey' sheet for which the values are being mapped.
+        
+    values_list : list
+        A list of values that need to be mapped to their corresponding labels.
+
+    tool_survey : pandas.DataFrame
+        The DataFrame containing the 'survey' sheet data.
+        
+    tool_choices : pandas.DataFrame
+        The DataFrame containing the 'choices' sheet data.
+        
+    label_col : str
+        The name of the column in the 'choices' sheet that contains the labels 
+        to map to the values in `values_list`.
+        
+    na_include : bool, optional
+        If True, includes a mapping for missing data ('No_data_available_NA'). 
+        Default is False.
+
+    Returns:
+    -------
+    list
+        A list of values from `values_list`, mapped to their corresponding labels 
+        from the 'choices' sheet, with unmatched values preserved and 'none' explicitly mapped to 'None '.
+    """
+    # get the shortlist of choices per variable
     choices_shortlist = tool_choices[
         tool_choices['list_name'].values == tool_survey[tool_survey['name']== column_name]['list_name'].values
     ][['name', label_col]]
+    # build a dictionary
     mapping_dict = dict(
         zip(choices_shortlist['name'], choices_shortlist[label_col]))
+    # add an NA entry to the dictionary if the parameter was chosen
     if na_include is True:
         mapping_dict['No_data_available_NA'] = 'No data available (NA)'
+    # if something was missing from the tool, it will be its own label
     for value in values_list:
         if value not in mapping_dict:
             mapping_dict[value] = value
     # None breaks everything. Trying to change it
     mapping_dict['none'] = 'None '
+    # build a list with the labels
     values_list = [mapping_dict.get(value, value) for value in values_list]
     return values_list
 
 def weighted_mean(df, weight_column, numeric_column):
+    
+    """
+    Calculates the weighted mean, weighted median, and other summary statistics 
+    for a specified numeric column, using weights from a specified column.
+
+    Parameters:
+    ----------
+    df : pandas.DataFrame
+        The DataFrame containing the data.
+        
+    weight_column : str
+        The name of the column in the DataFrame that contains the weights.
+        
+    numeric_column : str
+        The name of the column in the DataFrame that contains the numeric values 
+        for which the weighted statistics are calculated.
+
+    Returns:
+    -------
+    pandas.Series
+        A Series containing the following summary statistics:
+        - 'mean': The weighted mean of the `numeric_column`.
+        - 'median': The weighted median of the `numeric_column`.
+        - 'max': The maximum value of the `numeric_column`.
+        - 'min': The minimum value of the `numeric_column`.
+        - 'unweighted_count': The number of rows in the DataFrame (unweighted).
+        - 'count': The total weight (rounded).
+    """
+    
+    # get the total sum of the numeric column
     weighted_sum = (df[numeric_column] * df[weight_column]).sum()
+    # get the total weight value
     total_weight = df[weight_column].sum()
+    # get the weighted mean
     weighted_mean_result = weighted_sum / total_weight
+    # max and minimum
     weighted_max_result = df[numeric_column].max()
     weighted_min_result = df[numeric_column].min()
+    # get the weighted and unweighted counts
     count_w = round(total_weight,0)
     count = df.shape[0]
     
+    # sort the values
     sorted_df = df.sort_values(by=numeric_column)
     cum_weights = sorted_df[weight_column].cumsum()
+    # get the index of the median numeric value
     median_index = np.searchsorted(cum_weights, total_weight / 2.0)
-    
+    # if the median indexed value is squarely in the middle take it
     if cum_weights.iloc[median_index] == total_weight / 2.0 or sorted_df.shape[0] <= 2:
         weighted_median_result = sorted_df.iloc[median_index][numeric_column]
     else:
+    # if its not, take the one after the index or the last value (for super small samples)
         min_of_two = np.min([median_index + 1, sorted_df.shape[0]-1])
         weighted_median_result = sorted_df.iloc[min_of_two][numeric_column]
     
@@ -151,6 +300,26 @@ def weighted_mean(df, weight_column, numeric_column):
 
 
 def get_variable_type(data, variable_name):
+    
+    """
+    Determines the data type of a specified variable/column in a DataFrame and returns it as a string.
+
+    Parameters:
+    ----------
+    data : pandas.DataFrame
+        The DataFrame containing the data.
+        
+    variable_name : str
+        The name of the column for which the data type is being checked.
+
+    Returns:
+    -------
+    str
+        A string representing the type of the variable. The possible return values are:
+        - 'string' for object (text) data types.
+        - 'integer' for integer data types (int64, int32).
+        - 'decimal' for floating-point data types (float64, float32).
+    """
     if data[variable_name].dtype == 'object':
         return 'string'
     elif data[variable_name].dtype == 'int64' or data[variable_name].dtype == 'int' or data[variable_name].dtype == 'int32':
@@ -159,7 +328,45 @@ def get_variable_type(data, variable_name):
         return 'decimal'
 
 
-def check_daf_filter(daf, data, filter_daf, tool_survey, tool_choices):
+def check_daf_filter(daf, data, filter_daf, tool_survey):
+    
+    """
+    Validates a filter DataFrame against a Data Analysis Framework (DAF) and a dataset, 
+    ensuring that the filter conditions are consistent and correctly defined.
+
+    Parameters:
+    ----------
+    daf : pandas.DataFrame
+        The DataFrame containing the Data Analysis Framework (DAF) data.
+        
+    data : dict of pandas.DataFrame
+        A dictionary containing DataFrames for each datasheet in the tool, 
+        with datasheet names as keys.
+        
+    filter_daf : pandas.DataFrame
+        The DataFrame containing the filter conditions to be validated against the DAF.
+        
+    tool_survey : pandas.DataFrame
+        The DataFrame containing the survey sheet of your Kobo.
+
+    Raises:
+    ------
+    ValueError
+        If there are any NaN values in the filter DataFrame, if the IDs in 
+        the filter DataFrame are not consistent with those in the DAF, 
+        or if any filter conditions are incorrectly defined (e.g., variable not found, 
+        type mismatches, or disallowed operations for variable types).
+
+    Notes:
+    -----
+    - The function checks that all filter variables exist in the corresponding 
+      datasheet in the data.
+    - It also ensures that the variable types match between filter conditions 
+      and the corresponding data columns.
+    - The allowed operations are validated based on the variable types 
+      (e.g., numerical comparisons for numeric types and equality checks for strings).
+      
+    """
     merged_daf = filter_daf.merge(daf, on='ID', how='inner')
     # some calculate variables can be NaN
     merged_daf = merged_daf.drop(
@@ -217,6 +424,57 @@ def check_daf_filter(daf, data, filter_daf, tool_survey, tool_choices):
 
 
 def check_daf_consistency(daf, data, sheets, resolve=False):
+    
+    """
+    Checks the consistency of a Data Analysis Framework (DAF) against 
+    the corresponding data sheets, verifying that all variables 
+    are properly defined and exist in the appropriate data sheets.
+
+    Parameters:
+    ----------
+    daf : pandas.DataFrame
+        The DataFrame representing the Data Analysis Framework, which includes 
+        variables and their associated datasheets.
+
+    data : dict of pandas.DataFrame
+        A dictionary containing DataFrames for each datasheet in the tool, 
+        with datasheet names as keys.
+
+    sheets : list of str
+        A list of names of the sheets to be checked for variable existence.
+
+    resolve : bool, optional
+        If set to True, the function will print warnings and drop variables 
+        from the DAF that are missing or inconsistent instead of raising 
+        exceptions. Default is False.
+
+    Returns:
+    -------
+    pandas.DataFrame
+        The updated DAF after performing consistency checks. Variables 
+        that were found to be inconsistent may be dropped if `resolve` is True.
+
+    Raises:
+    ------
+    ValueError
+        If there are any missing variables in the DAF or if any variables 
+        do not exist in their corresponding data sheets (unless `resolve` is True).
+
+    Warnings:
+    ---------
+    Warnings will be printed for any intersections found between variables 
+    existing in multiple sheets.
+
+    Notes:
+    -----
+    - This function checks that all variables listed in the DAF have a 
+      corresponding datasheet and that they exist in the relevant data sheets.
+    - It also checks for any disaggregations defined in the DAF to ensure they 
+      are present in the data sheets.
+    - The function prints a summary of the number of variables found in each 
+      sheet, as well as any issues identified during the consistency checks.
+    """
+
     # check that all variables have a datasheet
     if daf['datasheet'].isnull().values.any():
         if not resolve:
@@ -235,11 +493,11 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
             else:
                 print(f"Column {row['variable']} not found in {row['datasheet']}")
                 daf.drop(id, inplace=True)
-
+        # Do some basic cleaning of disaggregations column
         if row["disaggregations"] not in ["overall", ""] and not pd.isna(row['disaggregations']):
             row["disaggregations"] = row["disaggregations"].replace(" ", "")
             disaggregations_list = row["disaggregations"].split(",")
-
+            # check if disaggregations are present in the relevant sheets
             for disaggregations_item in disaggregations_list:
                 if disaggregations_item not in data[row["datasheet"]].columns:
                     error_message = f"Disaggregation {disaggregations_item} not found in {row['datasheet']} for variable {row['variable']}"
@@ -249,7 +507,7 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
                         print(error_message)
                         daf.drop(id, inplace=True)
                         break
-
+        # check if admin columns are present in the appropriate sheets
         if row["admin"] not in data[row["datasheet"]].columns:
             if not resolve:
                 raise ValueError(f"admin {row['admin']} not found in {row['datasheet']} for variable {row['variable']}")
@@ -286,6 +544,21 @@ def check_daf_consistency(daf, data, sheets, resolve=False):
 
 
 def custom_sort_key(value):
+        
+    """
+    A helper function that helps with list sorting
+
+    Parameters:
+    ----------
+    daf : str
+        A string that will be checked
+
+    Returns:
+    -------
+    str
+        If the value is 'Total' makes sure that it'll be the last on the list. Else, it's just a value
+
+    """
     if value in 'Total' and isinstance(value, str):
         return 'zzzzzzzzzzz'  # This super dumb but it works
     else:
@@ -293,6 +566,35 @@ def custom_sort_key(value):
 
 
 def make_pivot(table, index_list, column_list, value):
+    """
+    Creates a pivot table from a given DataFrame.
+
+    Parameters:
+    ----------
+    table : pandas.DataFrame
+        The DataFrame containing the data to be pivoted.
+
+    index_list : list of str
+        The column names to use as the new index for the pivot table.
+
+    column_list : list of str
+        The column names to use for creating new columns in the pivot table.
+
+    value : str
+        The column name whose values will fill the new pivot table.
+
+    Returns:
+    -------
+    pandas.DataFrame
+        A new DataFrame representing the pivot table, with the specified index 
+        and columns and filled with the corresponding values.
+
+    Notes:
+    -----
+    - The resulting pivot table will have a multi-level index if multiple 
+      columns are specified in `index_list` or `column_list`.
+    - Missing values in the pivot table will be represented as NaN.
+    """
     pivot_table = table.pivot_table(index=index_list,
                                     columns=column_list,
                                     values=value).reset_index()
@@ -301,7 +603,28 @@ def make_pivot(table, index_list, column_list, value):
 
 def get_color(value):
     """
-    Generate a color that transitions from red (0%), to yellow/orange (50%), to green (100%).
+    Generate a hexadecimal color code based on the input value, transitioning 
+    from red (0%) to yellow/orange (50%) to green (100%).
+
+    Parameters:
+    ----------
+    value : float
+        A numeric value between 0 and 1. Values below 0 will return white, 
+        while values above 1 will also return white.
+
+    Returns:
+    -------
+    str
+        A hexadecimal string representing the color. The format is 
+        `#RRGGBB`, where `RR`, `GG`, and `BB` are the red, green, and blue 
+        components of the color, respectively.
+
+    Notes:
+    -----
+    - Values in the range [0, 0.5] will transition from red to yellow/orange.
+    - Values in the range (0.5, 1] will transition from yellow/orange to green.
+    - The function returns "FFFFFF" (white) for NaN values or values outside 
+      the range of 0 to 1.
     """
     if value <= 1:
         if value <= 0.5:
@@ -318,7 +641,31 @@ def get_color(value):
     return "FFFFFF"  # White for NaN or values > 1
 
 def col_num_to_excel(col_num):
-    """Convert a zero-based column index to an Excel-style column letter (e.g., 0 -> A, 1 -> B)."""
+    
+    """
+    Convert a zero-based column index to an Excel-style column letter.
+
+    Parameters:
+    ----------
+    col_num : int
+        A zero-based integer representing the column index. For example:
+        - 0 corresponds to 'A'
+        - 1 corresponds to 'B'
+        - 26 corresponds to 'Z'
+        - 27 corresponds to 'AA'
+
+    Returns:
+    -------
+    str
+        A string representing the corresponding Excel column letter(s).
+
+    Notes:
+    -----
+    - The function supports column indices beyond 25, returning multi-letter 
+      column names (e.g., 26 returns 'AA', 27 returns 'AB').
+    - This function assumes a zero-based index and does not handle negative 
+      inputs or non-integer types.
+    """
     letters = string.ascii_uppercase
     if col_num < len(letters):
         return letters[col_num]
@@ -329,14 +676,68 @@ def col_num_to_excel(col_num):
 
 def construct_result_table(tables_list, file_name, make_pivot_with_strata=False, color_cells=True, sort_by_total=False, conditional_formating=True):
     
+    """
+    Constructs an Excel workbook containing pivot tables from a list of DataFrames.
+
+    This function creates a workbook with two sheets: a table of contents that links to the data 
+    and a data sheet with pivot tables generated from the provided list of tables.
+
+    Parameters:
+    ----------
+    tables_list : list of tuples
+        A list of tuples where each tuple contains the following elements:
+            - DataFrame: The data to be processed and pivoted.
+            - str: An identifier for the table.
+            - str: A label for the table.
+            - str: The result of the table's significance check.
+
+    file_name : str
+        The name of the Excel file to be created (should end with '.xlsx').
+
+    make_pivot_with_strata : bool, optional
+        If True, creates pivot tables with strata. Default is False.
+
+    color_cells : bool, optional
+        If True, applies color formatting to cells based on their values. Default is True.
+
+    sort_by_total : bool, optional
+        If True, sorts the pivot table by total values. Default is False.
+
+    conditional_formating : bool, optional
+        If True, applies conditional formatting to the pivot tables. Default is True.
+
+    Returns:
+    -------
+    None
+        The function creates an Excel file and writes the data to it. The output is saved as 
+        specified by the `file_name` parameter.
+
+    Notes:
+    -----
+    - This function uses the `xlsxwriter` library to create the Excel workbook and apply 
+      formatting.
+    - The function automatically determines the values variable to be used based on the 
+      columns present in each DataFrame.
+    - It supports various configurations for how data is pivoted and formatted in the 
+      resulting Excel file.
+    - The workbook will contain two sheets: "Table_of_content" and "Data".
+    - Ensure that the input DataFrames are properly structured for the pivoting process to 
+      work correctly.
+
+    Example:
+    --------
+    >>> construct_result_table(tables_list, "output.xlsx", True, True, False, True)
+    """
+    # create a workbook object
     workbook = xlsxwriter.Workbook(file_name)
     
+    # add the sheets
     content_sheet = workbook.add_worksheet("Table_of_content")
     data_sheet = workbook.add_worksheet("Data")
+    # Create a counter
     link_idx = 1
 
     # Define formatting
-    
     percent_format = workbook.add_format({"num_format": "0.00%"})
     round_format = workbook.add_format({"num_format": "0.00"})
 
@@ -357,13 +758,19 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         table, ID, label, significance = element
         # print(ID)
         cols_tbl = table.columns
+        # The colums that will be added in the pivot
         pivot_column_names = {'disaggregations_category_1', 'oblast', 'macroregion'}
 
+        # what is the values_variable? The object that stores the values of the frequency analysis
         if "perc" in cols_tbl:
             values_variable = "perc"
         else:
+            # If we have mulptiple frequencies (case of joining) we have a list of values variables
             if any([x.startswith(('perc_','median_','mean_','max_','min_','category_count_')) for x in cols_tbl]):
                 values_variable = [x for x in cols_tbl if x.startswith(('perc_','median_','mean_','max_','min_','category_count_'))]
+            # category count can exist within the mean tables too and requires different treatment
+            # basically mean is a simple table of means
+            # count_mean is the count of that table created for count excel files
             elif 'mean' in table.columns and 'category_count' not in table.columns:
                values_variable = "mean"
             elif 'mean' in table.columns and 'category_count'  in table.columns:
@@ -371,20 +778,21 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             else:
                 values_variable = 'category_count'
             pivot_columns = []
-            
+        # check that columns are present
         pivot_columns = [col for col in pivot_column_names if col in cols_tbl]
         # else:
         #     pivot_columns = []
-            
+        
+        # if we have multiple disaggregations, only the first one will be considered for pivoting
         columns = [x for x in cols_tbl if ('disaggregations_category_' in x)]
         missed_cols = set(columns).difference(['disaggregations_category_1'])
         if len(missed_cols)>0:
             pivot_columns.extend(list(missed_cols))
             
-            
+        # case of perc and counts is the same
         if values_variable in ["perc" ,'category_count']:
             if make_pivot_with_strata:
-                
+                # split the frame with and without 'Total' and pivot them.
                 if 'Total' in table['admin_category'].values:
                     table_dirty = table[table['admin_category'] == 'Total']
                     table_clean = table[table['admin_category'] != 'Total']
@@ -393,26 +801,31 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                         table_dirty, pivot_columns + ["option"], ["admin_category"], values_variable)
                     pivot_table_clean = make_pivot(
                         table_clean, pivot_columns + ["option"], ["admin_category"], values_variable)
-
+                    # merge the pivoted frames
                     pivot_table = pd.merge(pivot_table_clean, pivot_table_dirty[[
                                            'option', 'Total']], on=['option'], how='left')
                 else:
+                    # else just pivot the frame regularly
                     pivot_table = make_pivot(
                         table, pivot_columns + ["option"], ["admin_category"], values_variable)
             else:
+                # The sample count variable is added here
                 if 'general_count' in cols_tbl:
                     pivot_columns.append('general_count')
-
+                    
+                # get the option values for sorting
                 options_column = table["option"].unique()
 
                 pivot_table = make_pivot(
                     table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
-                
+                # sort the values by the custom sort key
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key))
                 
+                # if sorted by total apply a different sorting algorithm
                 if sort_by_total:
                     if "disaggregations_category_1" in pivot_table.columns:
+                    # get the total row
                         total_row = pivot_table[
                             (pivot_table['disaggregations_category_1'] == 'Total') & 
                             (pivot_table['admin_category'] == 'Total')
@@ -421,6 +834,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                         total_row = pivot_table[(pivot_table['admin_category'] == 'Total')]
                     
                     if not total_row.empty:
+                        # Sort the results by value
                         total_values = total_row[options_column].iloc[0]
 
                         column_value_pairs = list(zip(options_column, total_values))
@@ -431,12 +845,12 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                         pivot_table_columns = [col for col in pivot_table.columns if col not in sorted_columns]
 
                         pivot_table = pivot_table[pivot_table_columns + sorted_columns]
-                
+                # if macroregion is present in the data, sort by that
                 if 'macroregion' in pivot_table.columns:
                     pivot_table = pivot_table.sort_values(
                         by='macroregion'
                     )
-
+        # If the values variable is count_mean, we only need the count itself for our tables. 
         elif values_variable == 'count_mean':
             table = table.reset_index(drop = True)
             cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc','min','max','median','mean']
@@ -448,7 +862,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 
         elif values_variable == 'mean':
             if make_pivot_with_strata:
-                # add numeric columns as a single one
+                # add numeric columns as a single one by melting the frame
                 table = table.reset_index()
                 ids = pivot_columns+['ID','admin_category']
                 table = pd.melt(table, id_vars=ids, value_vars=['median', 'mean', 'max','min'])
@@ -464,36 +878,40 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         else:
             # check if we're dealing with a count table
             category_count_columns = [x for x in cols_tbl if x.startswith('category_count_')]
-
+            # and keep only count columns
             cols_to_keep = ([x for x in cols_tbl if '_category' in x]
             +(['option']  if 'option' in cols_tbl else [])
             +(category_count_columns if category_count_columns else
             [x for x in cols_tbl if x.startswith(('perc_','median_','mean_','max_','min_'))])
             +[x for x in cols_tbl if x.endswith('_count')])
-
+            # and keep only what we need. No need to pivot if the tables were joined
             pivot_table = table[cols_to_keep]
             
         if 'macroregion' in pivot_table.columns:
             pivot_table = pivot_table.sort_values(by='macroregion')    
 
         cols_to_drop = ['mean','median','min','max']
-        
+        # drop unnecessary variables if needed
         if values_variable == 'count_mean':
             cols_to_drop = ['mean','median','min','max']+[x for x in cols_tbl if x.startswith(('median_','mean_','max_','min_'))]
             cols_to_keep = [i for i in pivot_table.columns if i not in cols_to_drop]
             pivot_table = pivot_table[cols_to_keep]
-            
+        
+        
+        # format the tables themselves
+        
         cell_id = link_idx
         names_id = cell_id+1
         
         link_idx += len(pivot_table) + 3
-        
+        # set the column headers
         column_headers = list(pivot_table.columns)
-
+        
+        # write the label
         data_sheet.write(cell_id, 0, label)
-
         for col_num, header in enumerate(column_headers):
             data_sheet.write(names_id, col_num, header)
+        # set the cell formatting to numeric/percentage
         for row_num, row in pivot_table.iterrows():
             for col_num, (column_name, value) in enumerate(row.items()):
                 if column_name not in ['disaggregations_category_1', 'admin_category', 'option', 
@@ -515,21 +933,23 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         
         #color code the percentages
         if  values_variable =='perc' or any(str(col).startswith('perc') for col in pivot_table.columns):
+            # get the columns to exclude
             exclude_prefixes = ['median_','mean_','max_','min_']
             
             exclude_columns = ['disaggregations_category_1', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion',
                             'mean', 'median', 'max' ,'min',
                             'count','full_count','weighted_count','unweighted_count','category_count','general_count']
-
+            # get the columns that need to be color coded and formated
             desired_columns = [col for col in pivot_table.columns if col not in exclude_columns or any(col.startswith(prefix) for prefix in exclude_prefixes)]
-                        
+            # the table column extent
             first_column_index = pivot_table.columns.get_loc(desired_columns[0])
             last_column_index = pivot_table.columns.get_loc(desired_columns[-1])
-            
+            # The table row extent
             first_cell = f"{col_num_to_excel(first_column_index)}{names_id+2}"
             last_cell = f"{col_num_to_excel(last_column_index)}{len(pivot_table)+names_id+1}"
             
+            # if needed color code and add borders to the table with the 3_color_scale
             if color_cells and conditional_formating:
                 data_sheet.conditional_format(f"{first_cell}:{last_cell}", 
                                             {'type':'3_color_scale',
@@ -539,16 +959,18 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 data_sheet.conditional_format( f"{first_cell}:{last_cell}" ,
                                     { 'type' : 'no_blanks' ,
                                     'format' : border_format} )
-            
+        # Means are formatted differently
         elif  values_variable =='mean' or any(str(col).startswith('mean_') for col in pivot_table.columns):
+            # Get the list of relevant columns
             desired_columns =   [col for col in pivot_table.columns if str(col).startswith(('mean_','median_','max_','min_')) or col in ['mean','median','max','min']]         
-
+            # the table column extent
             first_column_index = pivot_table.columns.get_loc(desired_columns[0])
             last_column_index = pivot_table.columns.get_loc(desired_columns[-1])
-            
+            # The table row extent
             first_cell = f"{col_num_to_excel(first_column_index)}{names_id+2}"
             last_cell = f"{col_num_to_excel(last_column_index)}{len(pivot_table)+names_id+1}"
-            
+
+            # If the formatting was required, get the parameters and set it
             if color_cells and conditional_formating:
                 for des_col in desired_columns:
                     max_val = max(pivot_table[des_col])
@@ -568,26 +990,27 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                                                 { 'type' : 'no_blanks' ,
                                                 'format' : border_format} )
                                 
-        
+        # Format the contents sheet
 
         if isinstance(values_variable,list):
             link_value = '' #', '.join(values_variable)
         else:
             link_value = values_variable
-            
+        # Add the label to the hyperlink
         text_on_link = f"{label} {link_value}"
         if len(text_on_link)>150:
             text_on_link= text_on_link[:150]+'...'
-        
+        # add the hyperlink itself
         link_text = f'=HYPERLINK("#\'Data\'!A{cell_id+1}", "{text_on_link}")'
-        
+        # write the files
         content_sheet.write(idx+1, 0, ID)
         content_sheet.write(idx+1, 1, link_text,bold)
         content_sheet.write(idx+1, 2, significance)
 
-        
+    # set the width of the first column in the contents sheet
     data_sheet.autofit()
     data_sheet.set_column_pixels(0, 0, 150)
+    # set the width of columns in the data sheet
     for col in range(26):
         data_sheet.set_column(col, col, 30)
     
@@ -596,11 +1019,73 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
 
 def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey,label_colname, check_significance, weight_column=None):
 
+    """
+    Creates disaggregated data tables based on specified configurations and conditions.
+
+    This function processes a DataFrame and generates frequency counts or 
+    numerical summaries based on specified disaggregations. It supports filtering 
+    of data based on predefined conditions and can optionally perform significance 
+    testing on the results.
+
+    Parameters:
+    ----------
+    daf_final : pd.DataFrame
+        A DAF object containing metadata and configurations for the disaggregation process,
+        including column names, calculation types, disaggregation definitions, and other 
+        relevant parameters.
+
+    data : dict of pd.DataFrame
+        A dictionary where keys are data sheet names and values are DataFrames containing
+        the actual survey response data.
+
+    filter_dictionary : dict
+        A mapping of question IDs to filter conditions, used to determine which rows of data
+        should be included based on specified filters.
+
+    tool_choices : pd.DataFrame
+        A tool_choices object created from 'choices' sheet of your Kobo.
+
+    tool_survey : pd.DataFrame
+         A tool_survey object created from 'survey' sheet of your Kobo.
+
+    label_colname : str
+        The name of the column used for labeling or identifying specific rows in the data.
+
+    check_significance : bool
+        A flag indicating whether to perform statistical significance tests on the disaggregated 
+        results.
+
+    weight_column : str, optional
+        The name of the column used for weighting responses in the calculations. If not provided, 
+        a default weight of 1 will be assigned.
+
+    Returns:
+    -------
+    df_list : list
+        A list of DataFrames, each containing the disaggregated results based on the specified
+        configurations. Each DataFrame corresponds to a DAF row and may include
+        frequency counts, means, or other statistical summaries, depending on the input data 
+        and calculations specified.
+
+
+    Notes:
+    ------
+    - The function expects the DataFrames in the `data` dictionary to have columns as specified
+      in `daf_final`. 
+    - Ensure that the disaggregation variables are properly defined in `daf_final` to avoid 
+      potential errors during processing.
+    - The statistical significance tests performed depend on the independent variables defined 
+      in the disaggregation settings and will generate p-values to evaluate differences between 
+      groups.
+    """
+    # If no weight_column was specified, the weight will be set to 1 on all sheets
     if weight_column == None:
         for sheet in data:
             data[sheet]['weight'] = 1
         weight_column = 'weight'
 
+    # get only the relevant functions from the daf and split the object in two
+    # Separate processes will be applied for numeric and frequency analyses
     daf_final_freq = daf_final[daf_final['func'].isin(
         ['freq', 'select_one', 'select_multiple'])]
     daf_final_num = daf_final[daf_final['func'].isin(['numeric', 'mean'])]
@@ -624,8 +1109,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             else:
                 disaggregations = []
             if not pd.isna(daf_final_freq.iloc[i]['calculation']):
-                # break down the calculations
-                if ' ' in daf_final_freq.iloc[i]['calculation']:
+                # break down the calculations (multiple entries are allowed)
+                if ',' in daf_final_freq.iloc[i]['calculation']:
                     calc = daf_final_freq.iloc[i]['calculation'].split(',')
                 else:
                     calc = [daf_final_freq.iloc[i]['calculation']]
@@ -633,45 +1118,53 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             else:
                 calc = 'None'
 
-            # get the correct sheet & add filters
+            # If the current ID is in the list of filtered IDs, get the filtering text and subset the dataframe
             if daf_final_freq.iloc[i]['ID'] in filter_dictionary.keys():
                 filter_text = 'data["'+daf_final_freq.iloc[i]['datasheet'] + \
                     '"]['+filter_dictionary[daf_final_freq.iloc[i]['ID']]
                 data_temp = eval(filter_text)
             else:
+                # If not, just keep the regular frame but select the appropriate sheet
                 data_temp = data[daf_final_freq.iloc[i]['datasheet']]
 
             # keep only those columns that we'll need
             selected_columns = [daf_final_freq['variable'][i]] + \
                 disaggregations+[daf_final_freq['admin'][i]]+[weight_column]
+            # add overall because we will need it in significance analysis
             if 'overall' not in selected_columns:
                 selected_columns = selected_columns + ['overall']
+            # get the number of rows for calculation of number percentage of respondents who saw this question
             total_nrow = data_temp.shape[0]
             data_temp = data_temp[selected_columns]
+            # for some weird cases, replace any + signs with a simple blank
             data_temp.loc[:, daf_final_freq['variable'][i]] = data_temp.loc[:, daf_final_freq['variable'][i]].apply(
                 lambda x: re.sub(' +', ' ', x) if isinstance(x, str) else x)
+            # if the row specifies inclusion of NAs - replace them with the static text
             if 'include_na' in calc:
                 data_temp.loc[:, daf_final_freq['variable'][i]] = data_temp[daf_final_freq['variable'][i]].fillna(
                     'No_data_available_NA')
+                # set the variable of NA inclusion to True for our map_names function
                 na_includer = True
             else:
-                # remove NA rows
+                # remove NA rows otherwise
                 data_temp = data_temp[data_temp[daf_final_freq['variable'][i]].notna(
                 )]
                 na_includer = False
 
             if data_temp.shape[0] > 0:
+                # get the total number of respondents who have answered the question
                 freq_count = data_temp.shape[0]
             # keep a backup for select multiples
                 data_temp_backup = data_temp.copy()
 
                 # break down the data form SM
                 if daf_final_freq.iloc[i]['q.type'] in ['select_multiple']:
-                    # set up a temp ID column as an alternative for uuid for removal of non-unique entries later on
+                    # set up a temp ID column as an alternative for uuid for removal of non-unique select_multiple entries later on
                     data_temp['ID_column'] = data_temp.index
+                    # remove excessive spaces
                     data_temp.loc[:, daf_final_freq.iloc[i]['variable']
                                   ] = data_temp[daf_final_freq.iloc[i]['variable']].str.strip()
-
+                    # split into multiple  by ' ' delimiter
                     data_temp.loc[:, daf_final_freq.iloc[i]['variable']
                                   ] = data_temp[daf_final_freq.iloc[i]['variable']].str.split(' ').copy()
                     # Separate rows using explode
@@ -680,7 +1173,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     # just in case somebody has duplicated entries within the select multiple
                     data_temp.drop_duplicates(inplace = True)
                     data_temp.drop('ID_column', axis =1, inplace = True)
-                    
+                # which columns are we calculating the frequency for?
                 groupby_columns = [daf_final_freq['admin'][i]] + \
                     disaggregations+[daf_final_freq['variable'][i]]
                 # check significance if such was specified
@@ -739,6 +1232,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                             if ' Overall' in admin_frame:
                                 res_frame = f'Significant relationship (pvalue={p_value_general})'
                             else:
+                                # get the labels of admins
                                 if admin_variable in set(tool_survey['name']):
                                     admin_frame = map_names_ls(admin_variable,admin_frame,tool_survey, tool_choices,label_colname)                        
                                 elif special_mapping==True and len(independent_variables)==1:
@@ -754,13 +1248,14 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 else:
                     res_frame = ''
 
+                # get the table with basic frequencies
                 summary_stats = data_temp.groupby(groupby_columns)[
                     weight_column].agg(['sum', 'count'])
 
                 # get the same stats but for the full subsample (not calculating option samples)
                 groupby_columns_ov = [
                     daf_final_freq['admin'][i]]+disaggregations
-
+                
                 summary_stats_var_om = data_temp_backup.groupby(
                     groupby_columns_ov)[weight_column].agg(['sum', 'count'])
 
@@ -772,14 +1267,17 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     columns={'count': 'unweighted_count'}, inplace=True)
                 summary_stats.rename(
                     columns={'sum': 'weighted_count'}, inplace=True)
+                # How many people in total have answered the question (weighted)
                 summary_stats_var_om.rename(
                     columns={'sum': 'general_count'}, inplace=True)
+                 # How many people in total have answered the question (unweighted)
                 summary_stats_var_om.rename(
                     columns={'count': 'general_count_uw'}, inplace=True)
-
+                # merge the frames together
                 summary_stats_full = summary_stats.merge(
                     summary_stats_var_om, on=groupby_columns_ov, how='left')
-
+                
+                # rename the category columns to their standard names
                 new_column_names = {daf_final_freq['variable'][i]: 'option',
                                     daf_final_freq['admin'][i]: 'admin_category'}
 
@@ -789,7 +1287,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
 
                 summary_stats_full.rename(
                     columns=new_column_names, inplace=True)
-
+                
+                # set the categorizing variables
                 summary_stats_full['admin'] = daf_final_freq['admin'][i]
                 summary_stats_full['variable'] = daf_final_freq['variable'][i]
 
@@ -797,8 +1296,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     for j, column_name in enumerate(disaggregations):
                         summary_stats_full[f'disaggregations_{j+1}'] = disaggregations[j]
 
-                # option replacer
-
+                # Replace the option names with their labels
                 if tool_survey['name'].isin([daf_final_freq.loc[i, 'variable']]).any():
                     summary_stats_full = map_names(column_name='variable',
                                                    column_values_name='option',
@@ -807,7 +1305,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                    tool_survey=tool_survey,
                                                    tool_choices=tool_choices,
                                                    na_include=na_includer)
-                # disaggregations category replacer
+                #  Replace the disaggregations names with their labels
                 if disaggregations != []:
                     for j, column_name in enumerate(disaggregations):
                         if disaggregations[j] in set(tool_survey['name']):
@@ -818,7 +1316,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                            tool_survey=tool_survey,
                                                            tool_choices=tool_choices)
                 
-                # admin category replacer
+                # Replace the admin names with their labels
                 if tool_survey['name'].isin([daf_final_freq.loc[i, 'admin']]).any():
                     summary_stats_full = map_names(column_name='admin',
                                                    column_values_name='admin_category',
@@ -828,7 +1326,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                    tool_choices=tool_choices)
 
                 
-                # add proper labels
+                # add proper labels to variable and disaggregations but keep the original names too
                 summary_stats_full['variable_orig'] = summary_stats_full['variable']
                 summary_stats_full['variable'] = daf_final_freq['variable_label'][i]
                 if disaggregations != []:
@@ -837,13 +1335,15 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         summary_stats_full[f'disaggregations_{j+1}_orig'] = summary_stats_full[f'disaggregations_{j+1}']
                         summary_stats_full[f'disaggregations_{j+1}'] = disaggregations_labels
 
-                # add perc
+                # Calculate the percentages of responses
                 summary_stats_full['perc'] = round(
                     summary_stats_full['weighted_count']/summary_stats_full['general_count'], 4)
-
+                
+                # round them
                 summary_stats_full['weighted_count'] = summary_stats_full['weighted_count'].round()
                 summary_stats_full['general_count'] = summary_stats_full['general_count'].round()
 
+                # If the user needs the totals (non-disaggregated). They are added here
                 if 'add_total' in calc:
                     summary_stats_total = data_temp.groupby(daf_final_freq['variable'][i])[
                         weight_column].agg(['sum','count'])  
@@ -869,6 +1369,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     summary_stats_total['admin_category'] = 'Total'
                     summary_stats_total['variable'] = daf_final_freq['variable'][i]
 
+                    # Replace the option names with their labels
                     if tool_survey['name'].isin([daf_final_freq.loc[i, 'variable']]).any():
                         summary_stats_total = map_names(column_name='variable',
                                                         column_values_name='option',
@@ -877,17 +1378,25 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                         tool_survey=tool_survey,
                                                         tool_choices=tool_choices,
                                                         na_include=na_includer)
+                        
+                    # add the variable labels and the original names
                     summary_stats_total['variable_orig'] = summary_stats_total['variable']
                     summary_stats_total['variable'] = daf_final_freq['variable_label'][i]
+                    
+                    # add the disaggregations labels and the original names
                     if disaggregations != []:
                         for j, column_name in enumerate(disaggregations):
                             summary_stats_total[f'disaggregations_{j+1}'] = 'Total'
                             summary_stats_total[f'disaggregations_category_{j+1}'] = 'Total'
-
+                            
+                    # merge together with the base tables
                     summary_stats_full = pd.concat(
                         [summary_stats_full, summary_stats_total], ignore_index=True)
 
+                # Add the total count of the dataframe
                 summary_stats_full['full_count'] = freq_count
+                
+                # Create the label object
                 if disaggregations != []:
                     label = daf_final_freq.iloc[i]['variable_label']+' broken down by ' + \
                         daf_final_freq.iloc[i]['disaggregations'] + \
@@ -895,7 +1404,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 else:
                     label = daf_final_freq.iloc[i]['variable_label'] + \
                         ' on the admin of '+daf_final_freq.iloc[i]['admin']
-
+                # get only the variables we'll be keeping from these tables
                 disagg_columns = [
                     col for col in summary_stats_full.columns if col.startswith('disaggregations') and not col.endswith('orig')]
                 
@@ -908,12 +1417,14 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                             'general_count','general_count_uw', 'full_count','total_count_perc']+ og_columns
                     
                 summary_stats_full = summary_stats_full[columns]
+                # merge together into a single list
                 df_list.append(
                     (summary_stats_full, daf_final_freq['ID'][i], label,res_frame))
 
     if len(daf_final_num) > 0:
         # Deal with numerics
         for i, row in daf_final_num.iterrows():
+            # split the disaggregations into a convenient list
             if not pd.isna(daf_final_num.iloc[i]['disaggregations']):
                 if ',' in daf_final_num.iloc[i]['disaggregations']:
                     disaggregations = daf_final_num.iloc[i]['disaggregations'].split(
@@ -926,8 +1437,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 disaggregations = []
                 
             if not pd.isna(daf_final_num.iloc[i]['calculation']):
-                # break down the calculations
-                if ' ' in daf_final_num.iloc[i]['calculation']:
+                # account for multiple calculations
+                if ',' in daf_final_num.iloc[i]['calculation']:
                     calc = daf_final_num.iloc[i]['calculation'].split(',')
                 else:
                     calc = [daf_final_num.iloc[i]['calculation']]
@@ -935,7 +1446,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             else:
                 calc = 'None'
 
-            # get the correct sheet & add filters
+            # If the current ID is in the list of filtered IDs, get the filtering text and subset the dataframe
             if daf_final_num.iloc[i]['ID'] in filter_dictionary.keys():
                 filter_text = 'data["'+daf_final_num.iloc[i]['datasheet'] + \
                     '"]['+filter_dictionary[daf_final_num.iloc[i]['ID']]
@@ -946,16 +1457,19 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
             # keep only those columns that we'll need
             selected_columns = [daf_final_num['variable'][i]] + \
                 disaggregations+[daf_final_num['admin'][i]]+[weight_column]
+            # add overall if we need it for the variance analysis
             if 'overall' not in selected_columns:
                 selected_columns = selected_columns + ['overall']
-                
             data_temp = data_temp[selected_columns]
+            # get the general shape of the frame to know how many entries we could have had
             total_nrow = data_temp.shape[0]
             # drop all NA observations
             data_temp = data_temp[data_temp[daf_final_num['variable'][i]].notna()]
 
             if data_temp.shape[0] > 0:
+                # get the number of answers
                 mean_count = data_temp.shape[0]
+                # which columns will we be disaggregating by
                 groupby_columns = disaggregations+[daf_final_num['admin'][i]]
                 # conduct the tests around here
                 if check_significance==True:
@@ -1017,6 +1531,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                             if ' Overall' in admin_frame:
                                 res_frame_num = f'Significant relationship (pvalue={p_value_general})'
                             else:
+                                # get the list of admin labels
                                 if admin_variable in set(tool_survey['name']):
                                     admin_frame = map_names_ls(admin_variable,admin_frame,tool_survey, tool_choices,label_colname)
                                 elif special_mapping==True and len(independent_variables)==1:
@@ -1038,7 +1553,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     weighted_mean, weight_column=weight_column, numeric_column=daf_final_num['variable'][i])
 
                 summary_stats = summary_stats.reset_index()
-
+                
+                # standardize the table names
                 new_column_names = {
                     daf_final_num['admin'][i]: 'admin_category'}
 
@@ -1047,7 +1563,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         new_column_names[column_name] = f'disaggregations_category_{j+1}'
 
                 summary_stats.rename(columns=new_column_names, inplace=True)
-
+                # set the original names of the columns
                 summary_stats['admin'] = daf_final_num['admin'][i]
                 summary_stats['variable'] = daf_final_num['variable'][i]
 
@@ -1075,7 +1591,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                               tool_survey=tool_survey,
                                               tool_choices=tool_choices)
 
-                # add proper labels
+                # add the original variable names and labels
                 summary_stats['variable_orig'] = summary_stats['variable']
                 summary_stats['variable'] = daf_final_num['variable_label'][i]
                 if disaggregations != []:
@@ -1083,7 +1599,8 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         disaggregations_labels = daf_final_num['disaggregations_label'][i]
                         summary_stats[f'disaggregations_{j+1}_orig'] = summary_stats[f'disaggregations_{j+1}']
                         summary_stats[f'disaggregations_{j+1}'] = disaggregations_labels
-
+                        
+                # if total is added, then it requires a bit different calculations
                 if 'add_total' in calc:
                     summary_stats_total = weighted_mean(
                         data_temp, weight_column=weight_column, numeric_column=daf_final_num['variable'][i]).to_frame().transpose()
@@ -1093,18 +1610,21 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     summary_stats_total['admin_category'] = 'Total'
                     summary_stats_total['variable'] = daf_final_num['variable'][i]
                     
+                    # add original names and values
                     summary_stats_total['variable_orig'] = summary_stats_total['variable']
                     summary_stats_total['variable'] = daf_final_num['variable_label'][i]
                     if disaggregations != []:
                         for j, column_name in enumerate(disaggregations):
                             summary_stats_total[f'disaggregations_{j+1}'] = 'Total'
                             summary_stats_total[f'disaggregations_category_{j+1}'] = 'Total'
-
+                    # merge with the old data
                     summary_stats = pd.concat(
                         [summary_stats, summary_stats_total], ignore_index=True)
-
+                # get the full number of people answering
                 summary_stats['full_count'] = mean_count
+                # rename the countz
                 summary_stats.rename(columns = {'count' : 'weighted_count'}, inplace = True)
+                # add the label object
                 if disaggregations != []:
                     label = daf_final_num.iloc[i]['variable_label']+' broken down by ' + \
                         daf_final_num.iloc[i]['disaggregations'] + \
@@ -1113,7 +1633,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     label = daf_final_num.iloc[i]['variable_label'] + \
                         ' on the admin of '+daf_final_num.iloc[i]['admin']
                 summary_stats['total_count_perc'] = round((summary_stats['full_count']/total_nrow)*100,2)
-                
+                # get the list of columns we'll be saving
                 og_columns = [
                     col for col in summary_stats.columns if col.endswith('orig')]
                 disagg_columns = [
@@ -1123,11 +1643,43 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     disagg_columns + ['mean', 'median','min',
                                       'max', 'weighted_count','unweighted_count' ,'full_count','total_count_perc']+og_columns
                 summary_stats = summary_stats[columns]
-
+                # Append the tupple to the list
                 df_list.append((summary_stats, daf_final_num['ID'][i], label,res_frame_num))
     return (df_list)
 
 def key_creator(row):
+    """
+    Creates a unique key string based on the contents of a DataFrame row.
+
+    This function constructs a key used for disaggregating survey data by concatenating various
+    attributes from the provided row. The key includes information about question types, 
+    options, administrative categories, and disaggregation categories.
+
+    Parameters:
+    ----------
+    row : pd.Series
+        A single row from a DataFrame representing a row of a frequency table, 
+        including fields such as question type, options, variable names, 
+        administrative information, and disaggregation categories.
+
+    Returns:
+    -------
+    str
+        A formatted key string that uniquely identifies the disaggregation 
+        structure for the given row of data. The key is constructed from various 
+        components including the question type, variable name, options, 
+        administrative information, and disaggregation categories.
+
+    Notes:
+    ------
+    - The function expects the input `row` to contain specific keys such as 
+      'q.type', 'variable_orig', 'admin_orig', and 'admin_category_orig'.
+    - The keys for disaggregation categories must follow the naming convention 
+      of containing 'disaggregations_category' and ending with 'orig'.
+    - Ensure that the input row does not contain missing values in the 
+      required fields to avoid generating incomplete keys.
+    """
+    
     bit_1_gen = 'prop_'+row['q.type'] if row['q.type'] in ['select_one','select_multiple']  else 'mean'
     if 'option_orig' in row.keys():
       bit_2_option = '' if pd.isna(row['option_orig']) else f"%/%{row['option_orig']}"
