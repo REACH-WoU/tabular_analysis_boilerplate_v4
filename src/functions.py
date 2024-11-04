@@ -559,10 +559,10 @@ def custom_sort_key(value):
         If the value is 'Total' makes sure that it'll be the last on the list. Else, it's just a value
 
     """
-    if value in 'Total' and isinstance(value, str):
-        return 'zzzzzzzzzzz'  # This super dumb but it works
+    if isinstance(value, str) and 'Total' in value:
+        return (1, value)
     else:
-        return value
+        return (0, value)
 
 
 def make_pivot(table, index_list, column_list, value):
@@ -796,7 +796,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 if 'Total' in table['admin_category'].values:
                     table_dirty = table[table['admin_category'] == 'Total']
                     table_clean = table[table['admin_category'] != 'Total']
-
+                    
                     pivot_table_dirty = make_pivot(
                         table_dirty, pivot_columns + ["option"], ["admin_category"], values_variable)
                     pivot_table_clean = make_pivot(
@@ -816,11 +816,14 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 # get the option values for sorting
                 options_column = table["option"].unique()
 
+                # replace general_count NA values for 'Total' rows woth full_count
+                table['general_count'] = table['general_count'].fillna(table['full_count'])
+                
                 pivot_table = make_pivot(
                     table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
                 # sort the values by the custom sort key
                 pivot_table = pivot_table.sort_values(
-                    by='admin_category', key=lambda x: x.map(custom_sort_key))
+                    by='admin_category', key=lambda x: x.map(custom_sort_key)).reset_index(drop=True)
                 
                 # if sorted by total apply a different sorting algorithm
                 if sort_by_total:
@@ -832,7 +835,6 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                         ]
                     else:
                         total_row = pivot_table[(pivot_table['admin_category'] == 'Total')]
-                    
                     if not total_row.empty:
                         # Sort the results by value
                         total_values = total_row[options_column].iloc[0]
@@ -845,6 +847,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                         pivot_table_columns = [col for col in pivot_table.columns if col not in sorted_columns]
 
                         pivot_table = pivot_table[pivot_table_columns + sorted_columns]
+                
                 # if macroregion is present in the data, sort by that
                 if 'macroregion' in pivot_table.columns:
                     pivot_table = pivot_table.sort_values(
@@ -911,6 +914,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         data_sheet.write(cell_id, 0, label)
         for col_num, header in enumerate(column_headers):
             data_sheet.write(names_id, col_num, header)
+
         # set the cell formatting to numeric/percentage
         for row_num, row in pivot_table.iterrows():
             for col_num, (column_name, value) in enumerate(row.items()):
@@ -989,7 +993,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 data_sheet.conditional_format( f"{first_cell}:{last_cell}" ,
                                                 { 'type' : 'no_blanks' ,
                                                 'format' : border_format} )
-                                
+                      
         # Format the contents sheet
 
         if isinstance(values_variable,list):
