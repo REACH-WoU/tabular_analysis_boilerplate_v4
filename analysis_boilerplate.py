@@ -72,8 +72,8 @@ daf = pd.read_excel(excel_path_daf, sheet_name="main")
 
 
 # remove the unnecessary quotes
-daf['variable_label'] = daf['variable_label'].str.replace('"', "'")
-daf['disaggregations_label'] = daf['disaggregations_label'].str.replace('"', "'")
+daf['variable_label'] = daf['variable_label'].apply(lambda x: x.replace('"', "'") if isinstance(x, str) else x)
+daf['disaggregations_label'] = daf['disaggregations_label'].apply(lambda x: x.replace('"', "'") if isinstance(x, str) else x)
 
 # check if all columns are present
 colnames_daf = set(['ID','variable','variable_label',
