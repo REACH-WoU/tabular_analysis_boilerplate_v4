@@ -918,9 +918,9 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         # set the cell formatting to numeric/percentage
         for row_num, row in pivot_table.iterrows():
             for col_num, (column_name, value) in enumerate(row.items()):
-                if column_name not in ['disaggregations_category_1', 'admin_category', 'option', 
+                if column_name not in ['disaggregations_category_1', 'disaggregations_category_2', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion',
-                            'mean', 'median', 'max' ,'min',
+                            'mean', 'median', 'max' ,'min', 'disaggregations_category_3'
                             'count','full_count','weighted_count','unweighted_count','category_count','general_count']:
                     if pd.isna(value):
                         data_sheet.write(row_num + 2 +cell_id, col_num, None)
@@ -940,9 +940,9 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             # get the columns to exclude
             exclude_prefixes = ['median_','mean_','max_','min_']
             
-            exclude_columns = ['disaggregations_category_1', 'admin_category', 'option', 
+            exclude_columns = ['disaggregations_category_1', 'disaggregations_category_2', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion',
-                            'mean', 'median', 'max' ,'min',
+                            'mean', 'median', 'max' ,'min', 'disaggregations_category_3',
                             'count','full_count','weighted_count','unweighted_count','category_count','general_count']
             # get the columns that need to be color coded and formated
             desired_columns = [col for col in pivot_table.columns if col not in exclude_columns or any(col.startswith(prefix) for prefix in exclude_prefixes)]
