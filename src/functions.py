@@ -1698,3 +1698,433 @@ def key_creator(row):
     bit_4_disaggs = '-/-'.join(combined_disaggs)
     return bit_1_gen +'@/@' +row['variable_orig'] + bit_2_option + bit_3_admin + '-/-'+bit_4_disaggs
     
+
+##################################### wide table construct #####################################
+
+def construct_result_wide_table(tables_list, file_name):
+    """
+    Processes frequency and numeric tables, pivots them using perc or value values and admin levels, and saves them into an Excel file.
+    :param tables_list: List of tuples containing table data, ID, label, and significance
+    :param file_name: Output Excel file name
+    """
+    numeric_list = []
+    freq_list = []
+
+    for idx, element in enumerate(tables_list):
+        table, ID, label, significance = element
+        cols_tbl = table.columns
+        # The colums that will be added in the pivot
+        pivot_column_names = {'disaggregations_category_1', 'oblast', 'macroregion'}
+
+        # what is the values_variable? The object that stores the values of the frequency analysis
+        if "perc" in cols_tbl:
+            values_variable = "perc"
+        else:
+            # If we have mulptiple frequencies (case of joining) we have a list of values variables
+            if any([x.startswith(('perc_','median_','mean_','max_','min_','category_count_')) for x in cols_tbl]):
+                values_variable = [x for x in cols_tbl if x.startswith(('perc_','median_','mean_','max_','min_','category_count_'))]
+            # category count can exist within the mean tables too and requires different treatment
+            # basically mean is a simple table of means
+            # count_mean is the count of that table created for count excel files
+            elif 'mean' in table.columns and 'category_count' not in table.columns:
+               values_variable = "mean"
+            elif 'mean' in table.columns and 'category_count'  in table.columns:
+                values_variable = 'count_mean'
+            else:
+                values_variable = 'category_count'
+            pivot_columns = []
+        # check that columns are present
+        pivot_columns = [col for col in pivot_column_names if col in cols_tbl]
+        
+        # if we have multiple disaggregations, only the first one will be considered for pivoting
+        columns = [x for x in cols_tbl if ('disaggregations_category_' in x)]
+        missed_cols = set(columns).difference(['disaggregations_category_1'])
+        if len(missed_cols)>0:
+            pivot_columns.extend(list(missed_cols))
+            
+        # case of perc and counts is the same
+        if values_variable in ["perc"]:
+            table["general_count"] = table["general_count"].fillna(0)
+            dissagr_col = [col for col in table.columns if col.startswith("disaggregations_category_")]
+
+            # split the frame with and without 'Total' and pivot them.
+            if 'Total' in table['admin_category'].values:
+                table_dirty = table[table['admin_category'] == 'Total']
+                table_clean = table[table['admin_category'] != 'Total']
+                
+                pivot_table_dirty = make_pivot(
+                    table_dirty, pivot_columns + ["option"], ["admin_category"], values_variable)
+                pivot_table_clean = make_pivot(
+                    table_clean, pivot_columns + ["option"], ["admin_category"], values_variable)
+                # merge the pivoted frames
+                pivot_table = pd.merge(pivot_table_clean, pivot_table_dirty[[
+                                        'option', 'Total']], on=['option'], how='left')
+            else:
+                # else just pivot the frame regularly
+                pivot_table = make_pivot(
+                    table, pivot_columns + ["option"], ["admin_category"], values_variable)
+                
+        elif values_variable == 'mean':
+            mean_table_backup = table.copy()
+            # add numeric columns as a single one by melting the frame
+            table = table.reset_index()
+            ids = pivot_columns+['ID', 'admin_category']
+            table = pd.melt(table, id_vars=ids, value_vars=['median', 'mean', 'max','min'])
+            # add new columns to pivot
+            values_variable = 'value'
+            pivot_columns = pivot_columns + ['variable']
+            pivot_table = make_pivot(table, pivot_columns, ["admin_category"], values_variable)
+            
+        if 'macroregion' in pivot_table.columns:
+            pivot_table = pivot_table.sort_values(by='macroregion')    
+
+        cols_to_drop = ['mean','median','min','max']
+        # drop unnecessary variables if needed
+        if values_variable == 'count_mean':
+            cols_to_drop = ['mean','median','min','max']+[x for x in cols_tbl if x.startswith(('median_','mean_','max_','min_'))]
+            cols_to_keep = [i for i in pivot_table.columns if i not in cols_to_drop]
+            pivot_table = pivot_table[cols_to_keep]
+
+        if values_variable in ["value"]:
+            
+            dissagr_col = [col for col in mean_table_backup.columns if col.startswith("disaggregations_category_")]
+            question_label = mean_table_backup["variable"].values[0]
+            if len(dissagr_col) > 0:
+                question_label += " by "
+            for idx, dis in enumerate(dissagr_col):
+                question_label += mean_table_backup[f"disaggregations_{idx + 1}"].values[0] + " "
+
+            pivot_table["question"] = question_label
+
+            numeric_list.append((pivot_table, pivot_table["question"].values[0], mean_table_backup["admin"].values[0]))
+
+        if values_variable in ["perc"]:
+            dissagr_col = [col for col in table.columns if col.startswith("disaggregations_category_")]
+
+            question_label = table["variable"].values[0]
+            if len(dissagr_col) > 0:
+                question_label += " by "
+            for idx, dis in enumerate(dissagr_col):
+                question_label += table[f"disaggregations_{idx + 1}"].values[0] + " "
+
+            pivot_table["question"] = question_label
+
+            freq_list.append((pivot_table, pivot_table["question"].values[0], table["admin"].values[0]))
+
+        
+    def group_and_concat(data_list, prefix):
+        grouped = {}
+        for pivot_table, variable, admin in data_list:
+            if admin not in grouped.keys():
+                grouped[admin] = []
+            grouped[admin].append(pivot_table)
+        
+        for admin, tables in grouped.items():
+            concated_table = pd.concat(tables, ignore_index=True)
+            dissagr_col = [col for col in concated_table.columns if col.startswith("disaggregations_category_")]
+            if prefix == "Frequency":
+                if "Total" in concated_table.columns:
+                    concated_table.rename(columns={"Total": "total_for_question"}, inplace=True)
+                    concated_table = concated_table[["question", "option"] + dissagr_col + ["total_for_question"] + [col for col in concated_table.columns if col not in ["question", "option"] + dissagr_col + ["total_for_question"]]]
+                else:
+                    concated_table = concated_table[["question", "option"] + dissagr_col + [col for col in concated_table.columns if col not in ["question", "option"] + dissagr_col]]
+            else:
+                concated_table.rename(columns={"Total": "total_for_question"}, inplace=True)
+                concated_table = concated_table[["question", "variable"] + dissagr_col + ["total_for_question"] + [col for col in concated_table.columns if col not in ["question", "variable"] + dissagr_col + ["total_for_question"]]]
+            grouped[admin] = concated_table
+        
+        return grouped
+
+    grouped_freq = group_and_concat(freq_list, prefix="Frequency")
+    grouped_numeric = group_and_concat(numeric_list, prefix="Numeric")
+
+    workbook = xlsxwriter.Workbook(file_name)
+
+    def save_to_sheets(grouped_data, workbook, prefix):
+        
+        for admin, table in grouped_data.items():
+            dissagr_col = [col for col in table.columns if col.startswith("disaggregations_category_")]
+            table[dissagr_col] = table[dissagr_col].fillna("Total")
+            table = table.fillna(0).replace([float('inf'), -float('inf')], "Inf")
+
+            sheet_name = f"{prefix}_{admin}"[:31]
+            worksheet = workbook.add_worksheet(sheet_name)
+
+            if len(dissagr_col) > 0:
+                last_diss_col_index = table.columns.get_loc(dissagr_col[-1])
+                worksheet.set_column(0, last_diss_col_index, 40)
+                worksheet.set_column(last_diss_col_index + 1, len(table.columns) - 1, 20)
+            else:
+                worksheet.set_column(0, 2, 40)
+                worksheet.set_column(3, len(table.columns) - 1, 20)
+
+            worksheet.set_row(0, 20)
+
+            header_format = workbook.add_format({
+                'bold': True,
+                'font_color': 'white',
+                'bg_color': 'blue',
+                'border': 1,
+                'align': 'center',
+                'valign': 'vcenter'
+            })
+            worksheet.write_row(0, 0, table.columns.tolist(), header_format)
+
+
+            col_format = workbook.add_format({
+                'align': 'center',
+                'valign': 'vcenter',
+                'num_format': '0.00',
+            })
+
+            percentage_format = workbook.add_format({
+                'num_format': '0.00%',
+                'align': 'center',
+                'valign': 'vcenter'
+            })
+
+            variable_col_index = table.columns.get_loc("question")
+            if prefix == "Frequency":
+                if len(dissagr_col) > 0:
+                    last_dis_col_index = table.columns.get_loc(dissagr_col[-1])
+                else:
+                    last_dis_col_index = 1
+            last_value = None
+            merge_start = None
+
+            for row_num, row_data in enumerate(table.values, start=1):
+                current_value = row_data[variable_col_index]
+                if current_value == last_value:
+                    if merge_start is None:
+                        merge_start = row_num - 1
+                else:
+                    if merge_start is not None:
+                        worksheet.merge_range(
+                            merge_start, 0, row_num - 1, 0,
+                            last_value, col_format
+                        )
+                        merge_start = None
+                    last_value = current_value
+                
+                if prefix == "Frequency":
+                    worksheet.write_row(row_num, 0, row_data[:last_dis_col_index + 1], col_format)
+                    worksheet.write_row(row_num, last_dis_col_index + 1, row_data[last_dis_col_index + 1:], percentage_format)
+                else:
+                    worksheet.write_row(row_num, 0, row_data, col_format)
+            worksheet.set_row(len(table), 15)
+
+            if merge_start is not None:
+                worksheet.merge_range(
+                    merge_start, 0, row_num, 0,
+                    last_value, col_format
+                )
+
+    save_to_sheets(grouped_numeric, workbook, prefix="Numeric")
+    save_to_sheets(grouped_freq, workbook, prefix="Frequency")
+
+    workbook.close()
+
+
+def construct_count_wide_table(tables_list, file_name):
+    """
+    Processes frequency and numeric tables, pivots them using general_count values and admin levels, and saves them into an Excel file.
+    :param tables_list: List of tuples containing table data, ID, label, and significance
+    :param file_name: Output Excel file name
+    """
+    numeric_list = []
+    freq_list = []
+
+    for idx, element in enumerate(tables_list):
+        table, ID, label, significance = element
+        cols_tbl = table.columns
+        # The colums that will be added in the pivot
+        pivot_column_names = {'disaggregations_category_1', 'oblast', 'macroregion'}
+
+        # what is the values_variable? The object that stores the values of the frequency analysis
+        if "perc" in cols_tbl:
+            values_variable = "general_count_perc"
+        else:
+            # If we have mulptiple frequencies (case of joining) we have a list of values variables
+            if any([x.startswith(('perc_','median_','mean_','max_','min_','category_count_')) for x in cols_tbl]):
+                values_variable = [x for x in cols_tbl if x.startswith(('perc_','median_','mean_','max_','min_','category_count_'))]
+            # category count can exist within the mean tables too and requires different treatment
+            # basically mean is a simple table of means
+            # count_mean is the count of that table created for count excel files
+            elif 'mean' in table.columns and 'category_count' not in table.columns:
+               values_variable = "general_count_mean"
+            elif 'mean' in table.columns and 'category_count'  in table.columns:
+                values_variable = 'count_mean'
+            else:
+                values_variable = 'category_count'
+            pivot_columns = []
+        # check that columns are present
+        pivot_columns = [col for col in pivot_column_names if col in cols_tbl]
+        
+        # if we have multiple disaggregations, only the first one will be considered for pivoting
+        columns = [x for x in cols_tbl if ('disaggregations_category_' in x)]
+        missed_cols = set(columns).difference(['disaggregations_category_1'])
+        if len(missed_cols)>0:
+            pivot_columns.extend(list(missed_cols))
+            
+        # case of perc and counts is the same
+        if values_variable in ["general_count_perc"]:
+            table["general_count"] = table["general_count"].fillna(0)
+            dissagr_col = [col for col in table.columns if col.startswith("disaggregations_category_")]
+
+            pivot_table = make_pivot(
+                    table, pivot_columns, ["admin_category"], "general_count")
+            if "index" in pivot_table.columns:
+                pivot_table = pivot_table.drop(columns=["index", "Total"])
+            else:
+                pivot_table = pivot_table.drop(columns=["Total"])
+                
+        elif values_variable == 'general_count_mean':
+            mean_table_backup = table.copy()
+            # add numeric columns as a single one by melting the frame
+            table = table.reset_index()
+            ids = pivot_columns+['ID', 'admin_category']
+            table = pd.melt(table, id_vars=ids, value_vars=['general_count'])
+            # add new columns to pivot
+            values_variable = 'value'
+            pivot_columns = pivot_columns + ['variable']
+            pivot_table = make_pivot(table, pivot_columns, ["admin_category"], values_variable)
+            
+        if 'macroregion' in pivot_table.columns:
+            pivot_table = pivot_table.sort_values(by='macroregion')
+
+        if values_variable in ["value"]:
+            
+            dissagr_col = [col for col in mean_table_backup.columns if col.startswith("disaggregations_category_")]
+            question_label = mean_table_backup["variable"].values[0]
+            if len(dissagr_col) > 0:
+                question_label += " by "
+            for idx, dis in enumerate(dissagr_col):
+                question_label += mean_table_backup[f"disaggregations_{idx + 1}"].values[0] + " "
+
+            pivot_table["question"] = question_label
+            pivot_table = pivot_table.drop(columns=["variable", "Total"])
+
+            numeric_list.append((pivot_table, pivot_table["question"].values[0], mean_table_backup["admin"].values[0]))
+
+        if values_variable in ["general_count_perc"]:
+            dissagr_col = [col for col in table.columns if col.startswith("disaggregations_category_")]
+
+            question_label = table["variable"].values[0]
+            if len(dissagr_col) > 0:
+                question_label += " by "
+            for idx, dis in enumerate(dissagr_col):
+                question_label += table[f"disaggregations_{idx + 1}"].values[0] + " "
+
+            pivot_table["question"] = question_label
+
+            freq_list.append((pivot_table, pivot_table["question"].values[0], table["admin"].values[0]))
+
+        
+    def group_and_concat(data_list, prefix):
+        grouped = {}
+        for pivot_table, variable, admin in data_list:
+            if admin not in grouped.keys():
+                grouped[admin] = []
+            grouped[admin].append(pivot_table)
+        
+        for admin, tables in grouped.items():
+            concated_table = pd.concat(tables, ignore_index=True)
+            dissagr_col = [col for col in concated_table.columns if col.startswith("disaggregations_category_")]
+            if prefix == "Frequency":
+                concated_table = concated_table[["question"] + dissagr_col + [col for col in concated_table.columns if col not in ["question"] + dissagr_col]]
+            else:
+                concated_table = concated_table[["question"] + dissagr_col + [col for col in concated_table.columns if col not in ["question"] + dissagr_col]]
+            grouped[admin] = concated_table
+        
+        return grouped
+
+    grouped_freq = group_and_concat(freq_list, prefix="Frequency")
+    grouped_numeric = group_and_concat(numeric_list, prefix="Numeric")
+
+    workbook = xlsxwriter.Workbook(file_name)
+
+    def save_to_sheets(grouped_data, workbook, prefix):
+        
+        for admin, table in grouped_data.items():
+            dissagr_col = [col for col in table.columns if col.startswith("disaggregations_category_")]
+            table[dissagr_col] = table[dissagr_col].fillna("Total")
+            table = table.fillna(0).replace([float('inf'), -float('inf')], "Inf")
+
+            sheet_name = f"{prefix}_{admin}"[:31]
+            worksheet = workbook.add_worksheet(sheet_name)
+
+            if len(dissagr_col) > 0:
+                last_diss_col_index = table.columns.get_loc(dissagr_col[-1])
+                worksheet.set_column(0, last_diss_col_index, 40)
+                worksheet.set_column(last_diss_col_index + 1, len(table.columns) - 1, 20)
+            else:
+                worksheet.set_column(0, 1, 40)
+                worksheet.set_column(1, len(table.columns) - 1, 20)
+
+            worksheet.set_row(0, 20)
+
+            header_format = workbook.add_format({
+                'bold': True,
+                'font_color': 'white',
+                'bg_color': 'blue',
+                'border': 1,
+                'align': 'center',
+                'valign': 'vcenter'
+            })
+            worksheet.write_row(0, 0, table.columns.tolist(), header_format)
+
+
+            col_format = workbook.add_format({
+                'align': 'center',
+                'valign': 'vcenter',
+                'num_format': '0',
+            })
+
+            variable_col_index = table.columns.get_loc("question")
+            if prefix == "Frequency":
+                if len(dissagr_col) > 0:
+                    last_dis_col_index = table.columns.get_loc(dissagr_col[-1])
+                else:
+                    last_dis_col_index = 1
+            last_value = None
+            merge_start = None
+
+            for row_num, row_data in enumerate(table.values, start=1):
+                current_value = row_data[variable_col_index]
+                if current_value == last_value:
+                    if merge_start is None:
+                        merge_start = row_num - 1
+                else:
+                    if merge_start is not None:
+                        worksheet.merge_range(
+                            merge_start, 0, row_num - 1, 0,
+                            last_value, col_format
+                        )
+                        merge_start = None
+                    last_value = current_value
+                
+                if prefix == "Frequency":
+                    worksheet.write_row(row_num, 0, row_data[:last_dis_col_index + 1], col_format)
+                    worksheet.write_row(row_num, last_dis_col_index + 1, row_data[last_dis_col_index + 1:], col_format)
+                else:
+                    worksheet.write_row(row_num, 0, row_data, col_format)
+            worksheet.set_row(len(table), 15)
+
+            if merge_start is not None:
+                worksheet.merge_range(
+                    merge_start, 0, row_num, 0,
+                    last_value, col_format
+                )
+
+    save_to_sheets(grouped_numeric, workbook, prefix="Numeric")
+    save_to_sheets(grouped_freq, workbook, prefix="Frequency")
+
+    workbook.close()
+
+
+def construct_wide_count_table(disaggregations_perc_new, filename):
+    """
+    Wrapper for wide tables calls
+    """
+    construct_result_wide_table(disaggregations_perc_new, filename)
+    construct_count_wide_table(disaggregations_perc_new, filename.split('.')[0] + "_count" + ".xlsx")
