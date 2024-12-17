@@ -238,12 +238,19 @@ disaggregations_count_w = deepcopy(disaggregations_full) # weighted count table
 
 # remove counts prom perc table
 for element in disaggregations_perc:
-  if isinstance(element[0], pd.DataFrame):  
+  if isinstance(element[0], pd.DataFrame):
     columns_to_drop = ['category_count', 'weighted_count', 'unweighted_count','general_count']
     # Drop each column if it exists in the DataFrame
-    for column in columns_to_drop:
-      if column in element[0].columns:
-        element[0].drop(columns=column, inplace=True)
+    if "min" not in element[0].columns:
+      for column in columns_to_drop:
+        if column in element[0].columns:
+          element[0].drop(columns=column, inplace=True)
+    else:
+      columns_to_drop = ['category_count', 'unweighted_count','general_count']
+      for column in columns_to_drop:
+        if column in element[0].columns:
+          element[0].drop(columns=column, inplace=True)
+      element[0].rename(columns={'weighted_count': 'general_count'}, inplace=True)
     # rename the unweighted count column
     element[0].rename(columns={'general_count_uw': 'general_count'}, inplace=True)
 
@@ -432,4 +439,10 @@ construct_result_table(disaggregations_count_new, filename_toc_count,make_pivot_
 construct_result_table(disaggregations_perc_new, filename_wide_toc,make_pivot_with_strata = True, conditional_formating=conditional_formating)
 concatenated_df.to_excel(filename_dash, index=False)
 concatenated_df_orig.to_excel(filename_key, index=False)
+
+# construct wide format table
+grouped_filename = "output/" + filename + "_grouped.xlsx"
+construct_wide_count_table(disaggregations_perc_new, grouped_filename)
+
+
 print('All done. Congratulations')
