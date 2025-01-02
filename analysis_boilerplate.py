@@ -239,21 +239,18 @@ disaggregations_count_w = deepcopy(disaggregations_full) # weighted count table
 # remove counts prom perc table
 for element in disaggregations_perc:
   if isinstance(element[0], pd.DataFrame):
-    columns_to_drop = ['category_count', 'weighted_count', 'unweighted_count','general_count']
+    columns_to_drop = ['category_count', 'weighted_count', 'unweighted_count']
     # Drop each column if it exists in the DataFrame
     if "min" not in element[0].columns:
       for column in columns_to_drop:
         if column in element[0].columns:
           element[0].drop(columns=column, inplace=True)
     else:
-      columns_to_drop = ['category_count', 'unweighted_count','general_count']
+      columns_to_drop = ['category_count', 'unweighted_count','general_count_uw']
       for column in columns_to_drop:
         if column in element[0].columns:
           element[0].drop(columns=column, inplace=True)
-      element[0].rename(columns={'weighted_count': 'general_count'}, inplace=True)
-    # rename the unweighted count column
-    element[0].rename(columns={'general_count_uw': 'general_count'}, inplace=True)
-
+    element[0].rename(columns={'weighted_count': 'general_count'}, inplace=True)
 
 
 # remove perc columns from weighted count table
