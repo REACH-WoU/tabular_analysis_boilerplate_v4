@@ -1973,9 +1973,11 @@ def construct_count_wide_table(tables_list, file_name):
 
             pivot_table = make_pivot(
                     table, pivot_columns, ["admin_category"], "general_count")
+            
             if "index" in pivot_table.columns:
-                pivot_table = pivot_table.drop(columns=["index", "Total"])
-            else:
+                pivot_table = pivot_table.drop(columns=["index"])
+
+            if "Total" in pivot_table.columns:
                 pivot_table = pivot_table.drop(columns=["Total"])
                 
         elif values_variable == 'general_count_mean':
