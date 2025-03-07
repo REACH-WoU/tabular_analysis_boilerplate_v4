@@ -69,6 +69,7 @@ for sheet_name in sheets:
 # check DAF for potential issues
 print('Checking Daf for issues')
 daf = pd.read_excel(excel_path_daf, sheet_name="main")
+daf["disaggregations_label"] = daf["disaggregations_label"].fillna(daf["disaggregations"])
 
 
 # remove the unnecessary quotes
