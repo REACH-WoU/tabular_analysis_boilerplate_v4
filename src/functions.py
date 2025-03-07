@@ -1829,8 +1829,11 @@ def construct_result_wide_table(tables_list, file_name):
                 else:
                     concated_table = concated_table[["question", "option"] + dissagr_col + [col for col in concated_table.columns if col not in ["question", "option"] + dissagr_col]]
             else:
-                concated_table.rename(columns={"Total": "total_for_question"}, inplace=True)
-                concated_table = concated_table[["question", "variable"] + dissagr_col + ["total_for_question"] + [col for col in concated_table.columns if col not in ["question", "variable"] + dissagr_col + ["total_for_question"]]]
+                if "Total" in concated_table.columns:
+                    concated_table.rename(columns={"Total": "total_for_question"}, inplace=True)
+                    concated_table = concated_table[["question", "variable"] + dissagr_col + ["total_for_question"] + [col for col in concated_table.columns if col not in ["question", "variable"] + dissagr_col + ["total_for_question"]]]
+                else:
+                    concated_table = concated_table[["question", "variable"] + dissagr_col + [col for col in concated_table.columns if col not in ["question", "variable"] + dissagr_col]]
             grouped[admin] = concated_table
         
         return grouped
@@ -2004,7 +2007,11 @@ def construct_count_wide_table(tables_list, file_name):
                 question_label += mean_table_backup[f"disaggregations_{idx + 1}"].values[0] + " "
 
             pivot_table["question"] = question_label
-            pivot_table = pivot_table.drop(columns=["variable", "Total"])
+            if "variable" in pivot_table.columns:
+                pivot_table = pivot_table.drop(columns=["variable"])
+
+            if "Total" in pivot_table.columns:
+                pivot_table = pivot_table.drop(columns=["Total"])
 
             numeric_list.append((pivot_table, pivot_table["question"].values[0], mean_table_backup["admin"].values[0]))
 
