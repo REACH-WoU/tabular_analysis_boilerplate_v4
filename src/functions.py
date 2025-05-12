@@ -818,12 +818,17 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
 
                 # replace general_count NA values for 'Total' rows woth full_count
                 table['general_count'] = table['general_count'].fillna(table['full_count'])
-                
+
                 pivot_table = make_pivot(
-                    table, pivot_columns + ["admin_category", "full_count"], ["option"], values_variable)
+                    table, pivot_columns + ["admin_category"], ["option"], values_variable)
+                
                 # sort the values by the custom sort key
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key)).reset_index(drop=True)
+
+                mask = pivot_table['admin_category'] == 'Total'
+                total_value = pivot_table.loc[~mask, 'general_count'].sum()
+                pivot_table.loc[mask, 'general_count'] = total_value
                 
                 # if sorted by total apply a different sorting algorithm
                 if sort_by_total:
@@ -856,12 +861,16 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         # If the values variable is count_mean, we only need the count itself for our tables. 
         elif values_variable == 'count_mean':
             table = table.reset_index(drop = True)
-            cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc','min','max','median','mean']
+            cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc','min','max','median','mean', "full_count"]
             cols_to_keep = [i for i in table.columns if i not in cols_to_drop]
             if make_pivot_with_strata:
                 pivot_table = make_pivot(table, pivot_columns, ["admin_category"], 'category_count')
             else:
                 pivot_table = table[cols_to_keep]
+            
+            mask = pivot_table['admin_category'] == 'Total'
+            total_value = pivot_table.loc[~mask, 'category_count'].sum()
+            pivot_table.loc[mask, 'category_count'] = total_value
                 
         elif values_variable == 'mean':
             if make_pivot_with_strata:
@@ -875,7 +884,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 pivot_table = make_pivot(table, pivot_columns, ["admin_category"], values_variable)
             else:
                 # if it's just a regular table - remove excessive information
-                cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc']
+                cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc', 'full_count']
                 cols_to_keep = [i for i in cols_tbl if i not in cols_to_drop]
                 pivot_table = table[cols_to_keep]
         else:

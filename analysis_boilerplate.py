@@ -6,7 +6,7 @@ from copy import deepcopy
 
 
 # set up your working directory
-os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
+# os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
 
 # Read the functions
 from src.functions import *
@@ -19,20 +19,20 @@ id_round = '1' # the round of your research cycle
 date = datetime.today().strftime('%Y_%m_%d')
 
 parquet_inputs = True # Whether you've transformed your data into a parquet inputs
-excel_path_data = 'data/test_frame.xlsx' # path to your excel datafile (you may leave it blank if working with parquet inputs)
+excel_path_data = "" # path to your excel datafile (you may leave it blank if working with parquet inputs)
 parquet_path_data = 'data/parquet_inputs/' # path to your parquet datafiles (you may leave it blank if working with excel input)
 
-excel_path_daf = 'resources/inclusion_ccia_overlaps.xlsx' # the path to your DAF file
-excel_path_tool = 'resources/MSNA_2024_Kobo_tool_F2F.xlsx' # the path to your kobo tool
+excel_path_daf = 'resources/DAF_MSNA_2024_genpop_for_publication_macroregion - final2.xlsx' # the path to your DAF file
+excel_path_tool = 'resources/tool.xlsx' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
-weighting_column = 'weight' # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
+weighting_column = "weight" # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
 
 sort_by_total = False # Sort choices columns for categorical by "Total" values
 conditional_formating = True # You can disable conditional formating(colors and borders) if your files so big or you don't need it
 color_add = True  # should the final output have colored cells?
 
-sign_check = True # should the script check the significance of the tables?
+sign_check = False # should the script check the significance of the tables?
 # end of the input section #
 
 # load the frames
@@ -240,18 +240,20 @@ disaggregations_count_w = deepcopy(disaggregations_full) # weighted count table
 # remove counts prom perc table
 for element in disaggregations_perc:
   if isinstance(element[0], pd.DataFrame):
-    columns_to_drop = ['category_count', 'weighted_count', 'unweighted_count']
+    
     # Drop each column if it exists in the DataFrame
     if "min" not in element[0].columns:
+      columns_to_drop = ['general_count', 'weighted_count', 'unweighted_count']
       for column in columns_to_drop:
         if column in element[0].columns:
           element[0].drop(columns=column, inplace=True)
+      element[0].rename(columns={'general_count_uw': 'general_count'}, inplace=True)
     else:
-      columns_to_drop = ['category_count', 'unweighted_count','general_count_uw']
+      columns_to_drop = ['category_count', 'weighted_count', 'general_count_uw']
       for column in columns_to_drop:
         if column in element[0].columns:
           element[0].drop(columns=column, inplace=True)
-    element[0].rename(columns={'weighted_count': 'general_count'}, inplace=True)
+      element[0].rename(columns={'unweighted_count': 'general_count'}, inplace=True)
 
 
 # remove perc columns from weighted count table
