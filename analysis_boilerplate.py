@@ -447,7 +447,7 @@ construct_result_table(disaggregations_perc_new, filename_toc,make_pivot_with_st
 if weighting_column != None:
   construct_result_table(disaggregations_count_w_new, filename_toc_count_w,make_pivot_with_strata = False, conditional_formating=conditional_formating)
 construct_result_table(disaggregations_count_new, filename_toc_count,make_pivot_with_strata = False, conditional_formating=conditional_formating)
-construct_result_table(disaggregations_perc_new, filename_wide_toc,make_pivot_with_strata = True, conditional_formating=conditional_formating)
+# construct_result_table(disaggregations_perc_new, filename_wide_toc,make_pivot_with_strata = True, conditional_formating=conditional_formating)
 concatenated_df.to_excel(filename_dash, index=False)
 concatenated_df_orig.to_excel(filename_key, index=False)
 
