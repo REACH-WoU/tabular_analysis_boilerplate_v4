@@ -6,7 +6,7 @@ from copy import deepcopy
 
 
 # set up your working directory
-# os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
+os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
 
 # Read the functions
 from src.functions import *
@@ -33,6 +33,9 @@ conditional_formating = True # You can disable conditional formating(colors and 
 color_add = True  # should the final output have colored cells?
 
 sign_check = False # should the script check the significance of the tables?
+
+add_moe = True # add margin of error for mean, median
+
 # end of the input section #
 
 # load the frames
@@ -221,9 +224,9 @@ if weighting_column is not None:
 # Get the disagg tables
 
 print('Building basic tables')
-daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
+daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable', right_on ='name', how = 'left')
 daf_final['q.type']=daf_final['q.type'].fillna('select_one')
-disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, label_colname = label_colname, check_significance= sign_check, weight_column =weighting_column)
+disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, label_colname=label_colname, check_significance=sign_check, weight_column=weighting_column, add_moe=add_moe)
 
 
 disaggregations_orig = deepcopy(disaggregations_full) # analysis key table
@@ -323,6 +326,8 @@ disaggregations_perc_new = deepcopy(disaggregations_perc)
 disaggregations_count_new = deepcopy(disaggregations_count)
 disaggregations_count_w_new = deepcopy(disaggregations_count_w)
 
+disaggregations_perc_new_for_group = disaggregations_perc_new.copy()
+
 for data_frame in [disaggregations_perc_new,disaggregations_count_new,disaggregations_count_w_new]:
 # check if any joining is needed
   if pd.notna(daf_final['join']).any():
@@ -364,8 +369,6 @@ for data_frame in [disaggregations_perc_new,disaggregations_count_new,disaggrega
       parent_tupple_data = parent_tupple[0][1][0].copy()
       parent_tupple_index = parent_tupple[0][0]
       # rename the data so that they are readable
-      
-      
       if parent_tupple_data['variable'][0] == child_tupple_data['variable'][0]:
         var_parent = parent_tupple_data['variable'][0] + '_' +str(parent_tupple_data['ID'][0])
         var_child = child_tupple_data['variable'][0] + '_' + str(child_tupple_data['ID'][0])
@@ -378,9 +381,9 @@ for data_frame in [disaggregations_perc_new,disaggregations_count_new,disaggrega
       dataframes =[parent_tupple_data, child_tupple_data]
 
       for var, dataframe in  zip(varnames, dataframes):
-        rename_dict = {'mean': 'mean_'+var,'median': 'median_'+var ,'count': 'count_'+var, 
+        rename_dict = {'mean': 'mean_'+var,'moe_mean': 'moe_mean_'+var,'median': 'median_'+var ,'moe_median': 'moe_median_'+var, 'count': 'count_'+var, 
                        'weighted_count': 'weighted_count_'+var,'unweighted_count': 'unweighted_count_'+var,
-                       'category_count': 'category_count_'+var,
+                       'category_count': 'category_count_'+var, 'general_count': 'general_count_'+var,
                       'perc': 'perc_'+var,'min': 'min_'+var, 'max': 'max_'+var}
 
         for old_name, new_name in rename_dict.items():
@@ -409,8 +412,16 @@ for data_frame in [disaggregations_perc_new,disaggregations_count_new,disaggrega
       else:
         parent_sig_f = ''
 
-      new_list = (parent_tupple_data,parent_index_f,parent_label_f,parent_sig_f)
-
+      if "full_count" in parent_tupple_data.columns:
+        parent_tupple_data = parent_tupple_data.drop(columns=['full_count'])
+      parent_tupple_data['general_count_max'] = parent_tupple_data.filter(regex='^general_').max(axis=1)
+      if 'comment' in daf_final.columns:
+        if daf_final.loc[daf_final['ID'] == parent_index_f, 'comment'].iloc[0] == "general_count_max":
+            parent_tupple_data = parent_tupple_data.loc[:, ~parent_tupple_data.columns.str.startswith('general_') | (parent_tupple_data.columns == 'general_count_max')]
+      count_cols_to_drop = [col for col in parent_tupple_data.columns
+                if col.startswith('general_count_') and col != 'general_count_max']
+      parent_tupple_data = parent_tupple_data.drop(columns=count_cols_to_drop)
+      new_list = (parent_tupple_data, parent_index_f, parent_label_f,parent_sig_f)
       data_frame[parent_tupple_index] = new_list
       del data_frame[child_tupple_index]
 
@@ -442,7 +453,7 @@ concatenated_df_orig.to_excel(filename_key, index=False)
 
 # construct wide format table
 grouped_filename = "output/" + filename + "_grouped.xlsx"
-construct_wide_count_table(disaggregations_perc_new, grouped_filename)
+construct_wide_count_table(disaggregations_perc_new_for_group, grouped_filename)
 
 
 print('All done. Congratulations')
