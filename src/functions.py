@@ -6,6 +6,8 @@ import string
 import xlsxwriter
 from scipy.stats import chi2_contingency
 from statsmodels.formula.api import ols
+from scipy.stats import gaussian_kde
+from scipy.interpolate import interp1d
 import warnings
 warnings.filterwarnings(
     "ignore", 'This pattern is interpreted as a regular expression, and has match groups.')
@@ -235,7 +237,62 @@ def map_names_ls(column_name, values_list, tool_survey, tool_choices,label_col, 
     values_list = [mapping_dict.get(value, value) for value in values_list]
     return values_list
 
-def weighted_mean(df, weight_column, numeric_column):
+def round_sig(x, sig):
+    """
+    Auxiliary function to round to significant digits
+    
+    Parameters:
+    ----------
+        x : float
+        sig : integer
+        
+    Returns:
+    -------
+        x rounded to sig digits
+    """
+    if x == 0:
+        return 0
+    return round(x, sig - int(np.floor(np.log10(abs(x)))) - 1)
+
+def smart_rounding(mean, moe):
+    """
+    Auxiliary function to do smart round of the mean and median
+    
+    Parameters:
+    ----------
+    mean : float
+        mean (or median) you'd like to round
+    moe : float
+        precalculated Margin of Error of the mean (median)
+    Returns:
+    -------
+        list
+        rounded mean (median) and rounded MoE
+    """
+    s = str(abs(moe)).replace('.', '')
+    non_zero_digits = [ch for ch in s if ch != '0']
+    
+    if len(non_zero_digits) > 1:
+        first_digit = int(non_zero_digits[0])
+        sec_digit = int(non_zero_digits[1])
+    else:
+        first_digit = int(non_zero_digits[0])
+        sec_digit = 0
+
+    if (first_digit == 1) & (sec_digit > 0):
+        sig_digits = 2
+    else:
+        sig_digits = 1
+    rounded_moe = round_sig(moe, sig_digits)
+
+    # Determine number of decimal places for final rounding
+    moe_order = -int(np.floor(np.log10(rounded_moe)))
+    decimals = moe_order if sig_digits == 1 else moe_order+1
+    rounded_mean = round(mean, decimals)
+
+    return rounded_mean, rounded_moe
+
+def weighted_mean(df, weight_column, numeric_column, add_moe=True):
     
     """
     Calculates the weighted mean, weighted median, and other summary statistics 
@@ -252,6 +309,13 @@ def weighted_mean(df, weight_column, numeric_column):
     numeric_column : str
         The name of the column in the DataFrame that contains the numeric values 
         for which the weighted statistics are calculated.
+        
+    add_moe : bool, optional
+        If True - counts confidence intevral for the mean using t-test and 
+        standard deviation obtained from stratification (assuming normal 
+        distribution within strata), rounds mean with respect to MoE.
+        If False - does not count margin of error, rounds mean to one digit 
+        after coma if all inputs are integer and to two digits otherwise. 
 
     Returns:
     -------
@@ -290,13 +354,70 @@ def weighted_mean(df, weight_column, numeric_column):
     # if its not, take the one after the index or the last value (for super small samples)
         min_of_two = np.min([median_index + 1, sorted_df.shape[0]-1])
         weighted_median_result = sorted_df.iloc[min_of_two][numeric_column]
-    
-    return pd.Series({'mean': weighted_mean_result,
-                      'median':weighted_median_result,
-                      'max': weighted_max_result,
-                      'min': weighted_min_result,
-                      'unweighted_count' : count,
-                      'count': count_w})
+    # calculating MoE of the median
+    if add_moe:
+        # Estimate density at the median using weighted KDE
+        kde = gaussian_kde(df[numeric_column], weights=df[weight_column])
+        density_x = np.linspace(min(df[numeric_column],), max(df[numeric_column],), 1000)
+        density_y = kde(density_x)
+        f_interp = interp1d(density_x, density_y, fill_value="extrapolate")
+        fmed = float(f_interp(weighted_median_result))
+        # Calculate MoE of the median for 95% CL and rounding median
+        moe_median = 1.96 / (np.sqrt(4 * len(df[numeric_column])) * fmed)
+        weighted_median_result, moe_median = smart_rounding(weighted_median_result,moe_median)
+    else:    
+        # rounding median to one digit
+        weighted_median_result = round(weighted_median_result, 1)
+            
+    # calculating MoE of the mean
+    if add_moe:
+        # group values by strata (weights)
+        x = df[numeric_column].to_numpy()
+        w = df[weight_column].to_numpy()
+        simple_df = pd.DataFrame({'x_value':x,'weight':w})
+        strata = simple_df.groupby('weight')
+        weighted_vars = []
+        weights = []
+        # looping throug strata
+        for stratum_value, group in strata:
+            x_value = group['x_value']
+            n = len(x_value)
+            if n==1:
+                var_x=(np.sum(x_value) - np.sum(w * x) / np.sum(w))**2 # we cannot calculate variance of one value, so it's like this - comparing to overall mean
+            else:
+                var_x = x_value.var(ddof=1)  # sample variance within stratum
+            # Treat the stratum_value as the weight (proxy for population share)
+            weight = stratum_value
+            weighted_vars.append((weight**2) * var_x / n)  # stratum-level variance contribution
+            weights.append(weight)
+        # Variance of weighted mean (stratified)
+        var_weighted_mean = sum(weighted_vars) / (sum(weights)**2)
+        # Calculate MoE of the mean for 95% CL and rounding mean
+        moe_mean = 1.96 * np.sqrt(var_weighted_mean)
+        weighted_mean_result, moe_mean = smart_rounding(weighted_mean_result, moe_mean)
+    else:
+        # rounding mean to two digits 
+        weighted_mean_result = round(weighted_mean_result, 2)
+            
+    weighted_max_result = round(weighted_max_result, 1)
+    weighted_min_result = round(weighted_min_result, 1)
+    if add_moe:
+        output = pd.Series({'mean': weighted_mean_result,
+                          'moe_mean' : moe_mean,
+                          'median':weighted_median_result,
+                          'moe_median': moe_median,
+                          'max': weighted_max_result,
+                          'min': weighted_min_result,
+                          'unweighted_count' : count,
+                          'count': count_w})
+    else:
+        output = pd.Series({'mean': weighted_mean_result,
+                          'median':weighted_median_result,
+                          'max': weighted_max_result,
+                          'min': weighted_min_result,
+                          'unweighted_count' : count,
+                          'count': count_w})
+    return output
 
 
 def get_variable_type(data, variable_name):
@@ -673,8 +794,8 @@ def col_num_to_excel(col_num):
         # For columns beyond 'Z', handle multi-letter column names (e.g., 26 -> AA, 27 -> AB)
         return col_num_to_excel(col_num // 26 - 1) + letters[col_num % 26]
 
-
-def construct_result_table(tables_list, file_name, make_pivot_with_strata=False, color_cells=True, sort_by_total=False, conditional_formating=True):
+# Added here a function to automatically highlight with red rows with sample <30
+def construct_result_table(tables_list, file_name, make_pivot_with_strata=False, color_cells=True, color_less30=True, sort_by_total=False, conditional_formating=True):
     
     """
     Constructs an Excel workbook containing pivot tables from a list of DataFrames.
@@ -699,7 +820,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
 
     color_cells : bool, optional
         If True, applies color formatting to cells based on their values. Default is True.
-
+    color_less30 : bool, optional
+        If True, highlights with red rows with sample size <30
     sort_by_total : bool, optional
         If True, sorts the pivot table by total values. Default is False.
 
@@ -736,7 +858,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
     data_sheet = workbook.add_worksheet("Data")
     # Create a counter
     link_idx = 1
-
+    # Define numeric columns
+    numeric_output_cols = ['mean','moe_mean','meadian','moe_median','min','max']
     # Define formatting
     percent_format = workbook.add_format({"num_format": "0.00%"})
     round_format = workbook.add_format({"num_format": "0.00"})
@@ -856,7 +979,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         # If the values variable is count_mean, we only need the count itself for our tables. 
         elif values_variable == 'count_mean':
             table = table.reset_index(drop = True)
-            cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc','min','max','median','mean']
+            cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc','min','max','median','moe_median','mean', 'moe_mean']
             cols_to_keep = [i for i in table.columns if i not in cols_to_drop]
             if make_pivot_with_strata:
                 pivot_table = make_pivot(table, pivot_columns, ["admin_category"], 'category_count')
@@ -868,7 +991,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 # add numeric columns as a single one by melting the frame
                 table = table.reset_index()
                 ids = pivot_columns+['ID','admin_category']
-                table = pd.melt(table, id_vars=ids, value_vars=['median', 'mean', 'max','min'])
+                value_vars = [col for col in numeric_output_cols if col in cols_tbl]
+                table = pd.melt(table, id_vars=ids, value_vars=value_vars)
                 # add new columns to pivot
                 values_variable = 'value'
                 pivot_columns = pivot_columns +['variable']
@@ -893,10 +1017,10 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         if 'macroregion' in pivot_table.columns:
             pivot_table = pivot_table.sort_values(by='macroregion')    
 
-        cols_to_drop = ['mean','median','min','max']
+        cols_to_drop = ['mean', 'moe_mean','median','moe_median','min','max']
         # drop unnecessary variables if needed
         if values_variable == 'count_mean':
-            cols_to_drop = ['mean','median','min','max']+[x for x in cols_tbl if x.startswith(('median_','mean_','max_','min_'))]
+            cols_to_drop = ['mean', 'moe_mean','median','moe_median','min','max']+[x for x in cols_tbl if x.startswith(('median_','mean_','max_','min_'))]
             cols_to_keep = [i for i in pivot_table.columns if i not in cols_to_drop]
             pivot_table = pivot_table[cols_to_keep]
         
@@ -920,7 +1044,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             for col_num, (column_name, value) in enumerate(row.items()):
                 if column_name not in ['disaggregations_category_1', 'disaggregations_category_2', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion',
-                            'mean', 'median', 'max' ,'min', 'disaggregations_category_3'
+                            'mean', 'moe_mean', 'median','moe_median', 'max' ,'min', 'disaggregations_category_3'
                             'count','full_count','weighted_count','unweighted_count','category_count','general_count']:
                     if pd.isna(value):
                         data_sheet.write(row_num + 2 +cell_id, col_num, None)
@@ -942,7 +1066,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             
             exclude_columns = ['disaggregations_category_1', 'disaggregations_category_2', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion',
-                            'mean', 'median', 'max' ,'min', 'disaggregations_category_3',
+                            'mean', 'moe_mean', 'median','moe_median', 'max' ,'min', 'disaggregations_category_3',
                             'count','full_count','weighted_count','unweighted_count','category_count','general_count']
             # get the columns that need to be color coded and formated
             desired_columns = [col for col in pivot_table.columns if col not in exclude_columns or any(col.startswith(prefix) for prefix in exclude_prefixes)]
@@ -966,7 +1090,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
         # Means are formatted differently
         elif  values_variable =='mean' or any(str(col).startswith('mean_') for col in pivot_table.columns):
             # Get the list of relevant columns
-            desired_columns =   [col for col in pivot_table.columns if str(col).startswith(('mean_','median_','max_','min_')) or col in ['mean','median','max','min']]         
+            desired_columns =   [col for col in pivot_table.columns if str(col).startswith(('mean_','median_','max_','min_')) or col in ['mean', 'moe_mean','median','moe_median','max','min']]         
             # the table column extent
             first_column_index = pivot_table.columns.get_loc(desired_columns[0])
             last_column_index = pivot_table.columns.get_loc(desired_columns[-1])
@@ -1021,7 +1145,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
     workbook.close()
 
 
-def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey,label_colname, check_significance, weight_column=None):
+def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, tool_survey,label_colname, check_significance, add_moe, weight_column=None):
 
     """
     Creates disaggregated data tables based on specified configurations and conditions.
@@ -1058,6 +1182,9 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
     check_significance : bool
         A flag indicating whether to perform statistical significance tests on the disaggregated 
         results.
+        
+    add_moe : bool
+        A flag indicating whether to add Margin of Error and smart rounding for mean and median.
 
     weight_column : str, optional
         The name of the column used for weighting responses in the calculations. If not provided, 
@@ -1087,7 +1214,12 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
         for sheet in data:
             data[sheet]['weight'] = 1
         weight_column = 'weight'
-
+    
+    # Check if needs to add MoE columns
+    if add_moe:
+        numeric_output_cols = ['mean','moe_mean','median','moe_median','min','max']
+    else:
+        numeric_output_cols = ['mean','median','min','max']
     # get only the relevant functions from the daf and split the object in two
     # Separate processes will be applied for numeric and frequency analyses
     daf_final_freq = daf_final[daf_final['func'].isin(
@@ -1554,7 +1686,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 # get the general disaggregations statistics
 
                 summary_stats = data_temp.groupby(groupby_columns).apply(
-                    weighted_mean, weight_column=weight_column, numeric_column=daf_final_num['variable'][i])
+                    weighted_mean, weight_column=weight_column, numeric_column=daf_final_num['variable'][i], add_moe=add_moe)
 
                 summary_stats = summary_stats.reset_index()
                 
@@ -1607,7 +1739,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 # if total is added, then it requires a bit different calculations
                 if 'add_total' in calc:
                     summary_stats_total = weighted_mean(
-                        data_temp, weight_column=weight_column, numeric_column=daf_final_num['variable'][i]).to_frame().transpose()
+                        data_temp, weight_column=weight_column, numeric_column=daf_final_num['variable'][i],add_moe=add_moe).to_frame().transpose()
 
                     # add new columns to match the existing format
                     summary_stats_total['admin'] = 'Total'
@@ -1644,8 +1776,7 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     col for col in summary_stats.columns if col.startswith('disaggregations') and not col.endswith('orig')]
                 summary_stats['ID'] = daf_final_num.iloc[i]['ID']
                 columns = ['ID', 'admin', 'admin_category', 'variable'] + \
-                    disagg_columns + ['mean', 'median','min',
-                                      'max', 'weighted_count','unweighted_count' ,'full_count','total_count_perc']+og_columns
+                    disagg_columns + numeric_output_cols + ['weighted_count','unweighted_count' ,'full_count','total_count_perc']+og_columns
                 summary_stats = summary_stats[columns]
                 # Append the tupple to the list
                 df_list.append((summary_stats, daf_final_num['ID'][i], label,res_frame_num))
@@ -1709,6 +1840,7 @@ def construct_result_wide_table(tables_list, file_name):
     """
     numeric_list = []
     freq_list = []
+    numeric_output_cols = ['mean','moe_mean','meadian','moe_median','min','max']
 
     for idx, element in enumerate(tables_list):
         table, ID, label, significance = element
@@ -1769,7 +1901,8 @@ def construct_result_wide_table(tables_list, file_name):
             # add numeric columns as a single one by melting the frame
             table = table.reset_index()
             ids = pivot_columns+['ID', 'admin_category']
-            table = pd.melt(table, id_vars=ids, value_vars=['median', 'mean', 'max','min'])
+            value_vars = [col for col in numeric_output_cols if col in cols_tbl]
+            table = pd.melt(table, id_vars=ids, value_vars=value_vars)
             # add new columns to pivot
             values_variable = 'value'
             pivot_columns = pivot_columns + ['variable']
@@ -1778,10 +1911,10 @@ def construct_result_wide_table(tables_list, file_name):
         if 'macroregion' in pivot_table.columns:
             pivot_table = pivot_table.sort_values(by='macroregion')    
 
-        cols_to_drop = ['mean','median','min','max']
+        cols_to_drop = ['mean', 'moe_mean','median','moe_median','min','max']
         # drop unnecessary variables if needed
         if values_variable == 'count_mean':
-            cols_to_drop = ['mean','median','min','max']+[x for x in cols_tbl if x.startswith(('median_','mean_','max_','min_'))]
+            cols_to_drop = ['mean', 'moe_mean','median','moe_median','min','max']+[x for x in cols_tbl if x.startswith(('median_','mean_','max_','min_'))]
             cols_to_keep = [i for i in pivot_table.columns if i not in cols_to_drop]
             pivot_table = pivot_table[cols_to_keep]
 
