@@ -33,6 +33,9 @@ conditional_formating = True # You can disable conditional formating(colors and 
 color_add = True  # should the final output have colored cells?
 
 sign_check = False # should the script check the significance of the tables?
+
+add_moe = False # add margin of error for mean, median
+
 # end of the input section #
 
 # load the frames
