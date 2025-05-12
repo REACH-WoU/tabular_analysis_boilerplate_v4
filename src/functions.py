@@ -269,8 +269,15 @@ def smart_rounding(mean, moe):
         list
         rounded mean (median) and rounded MoE
     """
-    first_digit = int(str(round_sig(moe, 2))[0])
-    sec_digit = int(str(round_sig(moe, 2))[1])
+    s = str(abs(moe)).replace('.', '')
+    non_zero_digits = [ch for ch in s if ch != '0']
+    
+    if len(non_zero_digits) > 1:
+        first_digit = int(non_zero_digits[0])
+        sec_digit = int(non_zero_digits[1])
+    else:
+        first_digit = int(non_zero_digits[0])
+        sec_digit = 0
 
     if (first_digit == 1) & (sec_digit > 0):
         sig_digits = 2
