@@ -6,7 +6,7 @@ from copy import deepcopy
 
 
 # set up your working directory
-# os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
+os.chdir('/Users/reach/Desktop/Git/tabular_analysis_boilerplate_v4/')
 
 # Read the functions
 from src.functions import *
@@ -224,9 +224,9 @@ if weighting_column is not None:
 # Get the disagg tables
 
 print('Building basic tables')
-daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable',right_on = 'name', how='left')
+daf_final = daf_merged.merge(tool_survey[['name','q.type']], left_on = 'variable', right_on = 'name', how='left')
 daf_final['q.type']=daf_final['q.type'].fillna('select_one')
-disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, label_colname = label_colname, check_significance= sign_check, weight_column =weighting_column)
+disaggregations_full = disaggregation_creator(daf_final, data,filter_dict, tool_choices, tool_survey, label_colname=label_colname, check_significance=sign_check, weight_column=weighting_column, add_moe=add_moe)
 
 
 disaggregations_orig = deepcopy(disaggregations_full) # analysis key table
