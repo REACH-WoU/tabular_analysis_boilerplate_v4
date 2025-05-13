@@ -899,14 +899,14 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             values_variable = "perc"
         else:
             # If we have mulptiple frequencies (case of joining) we have a list of values variables
-            if any([x.startswith(('perc_','median_','mean_','max_','min_','category_count_')) for x in cols_tbl]):
+            if any([x.startswith(('perc_','median_','mean_','max_','min_','category_count_')) for x in cols_tbl]) and not any([x =='category_count_max' for x in cols_tbl]):
                 values_variable = [x for x in cols_tbl if x.startswith(('perc_','median_','mean_','max_','min_','category_count_'))]
             # category count can exist within the mean tables too and requires different treatment
             # basically mean is a simple table of means
             # count_mean is the count of that table created for count excel files
-            elif 'mean' in table.columns and 'category_count' not in table.columns:
+            elif any([x.startswith('mean') for x in table.columns]) and not any([x.startswith('category_count') for x in table.columns]):
                values_variable = "mean"
-            elif 'mean' in table.columns and 'category_count'  in table.columns:
+            elif any([x.startswith('mean') for x in table.columns]) and any([x.startswith('category_count') for x in table.columns]):
                 values_variable = 'count_mean'
             else:
                 values_variable = 'category_count'
@@ -999,19 +999,25 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                     )
         # If the values variable is count_mean, we only need the count itself for our tables. 
         elif values_variable == 'count_mean':
+            if "category_count_max" in cols_tbl:
+                category_count_column = "category_count_max"
+            else:
+                category_count_column = "category_count"
+
             table = table.reset_index(drop = True)
-            cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc','min','max','median','moe_median','mean', 'moe_mean', 'full_count']
+            cols_to_drop = ['ID', 'variable','admin','disaggregations_1','total_count_perc', 'full_count'] + [x for x in table.columns if x.startswith(('min','max','median','moe','mean','moe'))]
             cols_to_keep = [i for i in table.columns if i not in cols_to_drop]
             if make_pivot_with_strata:
-                pivot_table = make_pivot(table, pivot_columns, ["admin_category"], 'category_count')
+                pivot_table = make_pivot(table, pivot_columns, ["admin_category"], category_count_column)
             else:
                 pivot_table = table[cols_to_keep]
             
             mask = pivot_table['admin_category'] == 'Total'
-            total_value = pivot_table.loc[~mask, 'category_count'].sum()
-            pivot_table.loc[mask, 'category_count'] = total_value
+            total_value = pivot_table.loc[~mask, category_count_column].sum()
+            pivot_table.loc[mask, category_count_column] = total_value
         
-        elif values_variable == 'mean' or any(item.startswith("mean") for item in values_variable):
+        elif (values_variable == 'mean' or any(item.startswith("mean") for item in values_variable)):
+            # and not any(item.startswith("category_count") for item in values_variable)
             if make_pivot_with_strata:
                 # add numeric columns as a single one by melting the frame
                 table = table.reset_index()
@@ -1069,7 +1075,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             for col_num, (column_name, value) in enumerate(row.items()):
                 if column_name not in ['disaggregations_category_1', 'disaggregations_category_2', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion', 'disaggregations_category_3'
-                            'count', 'full_count','weighted_count','unweighted_count','category_count','general_count', 'general_count_max'] and not column_name.startswith("mean")\
+                            'count', 'full_count','weighted_count','unweighted_count','category_count', 'category_count_max', 'general_count', 'general_count_max'] and not column_name.startswith("mean")\
                             and not column_name.startswith("moe_") and not column_name.startswith("median") and not column_name.startswith("max") and not column_name.startswith("min"):
                     if pd.isna(value):
                         data_sheet.write(row_num + 2 +cell_id, col_num, None)
@@ -1091,7 +1097,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             exclude_columns = ['disaggregations_category_1', 'disaggregations_category_2', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion',
                             'mean', 'moe_mean', 'median','moe_median', 'max' ,'min', 'disaggregations_category_3',
-                            'count','full_count','weighted_count','unweighted_count','category_count','general_count', 'general_count_max']
+                            'count','full_count','weighted_count','unweighted_count','category_count', 'category_count_max', 'general_count', 'general_count_max']
             # get the columns that need to be color coded and formated
             desired_columns = [col for col in pivot_table.columns if col not in exclude_columns or any(col.startswith(prefix) for prefix in exclude_prefixes)]
             # the table column extent

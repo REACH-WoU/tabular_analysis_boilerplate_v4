@@ -19,11 +19,11 @@ id_round = '1' # the round of your research cycle
 date = datetime.today().strftime('%Y_%m_%d')
 
 parquet_inputs = True # Whether you've transformed your data into a parquet inputs
-excel_path_data = "" # path to your excel datafile (you may leave it blank if working with parquet inputs)
+excel_path_data = "data/test_frame.xlsx" # path to your excel datafile (you may leave it blank if working with parquet inputs)
 parquet_path_data = 'data/parquet_inputs/' # path to your parquet datafiles (you may leave it blank if working with excel input)
 
-excel_path_daf = 'resources/DAF_MSNA_2024_genpop_for_publication_macroregion - final2.xlsx' # the path to your DAF file
-excel_path_tool = 'resources/tool.xlsx' # the path to your kobo tool
+excel_path_daf = 'resources/DAF_example.xlsx' # the path to your DAF file
+excel_path_tool = '' # the path to your kobo tool
 
 label_colname = 'label::English' # the name of your label::English column. Must be identical in Kobo tool and survey sheets!
 weighting_column = "weight" # add the name of your weight column or write None (no quotation marks around None, pls) if you don't have one
@@ -258,11 +258,11 @@ for element in disaggregations_perc:
           element[0].drop(columns=column, inplace=True)
       element[0].rename(columns={'unweighted_count': 'general_count'}, inplace=True)
 
-
 # remove perc columns from weighted count table
 for element in disaggregations_count_w:
-  if isinstance(element[0], pd.DataFrame):  
-    columns_to_drop = ['perc', 'unweighted_count','general_count_uw']
+  if isinstance(element[0], pd.DataFrame):
+    print(element[0].columns)
+    columns_to_drop = ['perc', 'unweighted_count']
     for column in columns_to_drop:
       if column in element[0].columns:
         element[0].drop(columns=column, inplace=True)
@@ -276,7 +276,8 @@ for element in disaggregations_count:
       if column in element[0].columns:
         element[0].drop(columns=column, inplace=True)
     element[0].rename(columns={'unweighted_count': 'category_count'}, inplace=True)
-    element[0].rename(columns={'general_count_uw': 'general_count'}, inplace=True)
+    if "min" not in element[0].columns:
+      element[0].rename(columns={'general_count_uw': 'general_count'}, inplace=True)
 
 
 # Get the columns for Analysis key table 
@@ -414,12 +415,19 @@ for data_frame in [disaggregations_perc_new,disaggregations_count_new,disaggrega
 
       if "full_count" in parent_tupple_data.columns:
         parent_tupple_data = parent_tupple_data.drop(columns=['full_count'])
-      parent_tupple_data['general_count_max'] = parent_tupple_data.filter(regex='^general_').max(axis=1)
+      if any([x.startswith(('general_')) for x in parent_tupple_data.columns]):
+        parent_tupple_data['general_count_max'] = parent_tupple_data.filter(regex='^general_').max(axis=1)
+      else:
+        parent_tupple_data['category_count_max'] = parent_tupple_data.filter(regex='^category_').max(axis=1)
       if 'comment' in daf_final.columns:
         if daf_final.loc[daf_final['ID'] == parent_index_f, 'comment'].iloc[0] == "general_count_max":
             parent_tupple_data = parent_tupple_data.loc[:, ~parent_tupple_data.columns.str.startswith('general_') | (parent_tupple_data.columns == 'general_count_max')]
+        if daf_final.loc[daf_final['ID'] == parent_index_f, 'comment'].iloc[0] == "category_count_max":
+            parent_tupple_data = parent_tupple_data.loc[:, ~parent_tupple_data.columns.str.startswith('category_') | (parent_tupple_data.columns == 'category_count_max')]
       count_cols_to_drop = [col for col in parent_tupple_data.columns
                 if col.startswith('general_count_') and col != 'general_count_max']
+      count_cols_to_drop += [col for col in parent_tupple_data.columns
+                if col.startswith('category_count_') and col != 'category_count_max']
       parent_tupple_data = parent_tupple_data.drop(columns=count_cols_to_drop)
       new_list = (parent_tupple_data, parent_index_f, parent_label_f,parent_sig_f)
       data_frame[parent_tupple_index] = new_list
@@ -454,6 +462,5 @@ concatenated_df_orig.to_excel(filename_key, index=False)
 # construct wide format table
 grouped_filename = "output/" + filename + "_grouped.xlsx"
 construct_wide_count_table(disaggregations_perc_new_for_group, grouped_filename)
-
 
 print('All done. Congratulations')
