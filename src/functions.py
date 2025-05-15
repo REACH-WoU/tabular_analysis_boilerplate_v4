@@ -998,7 +998,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                         by='macroregion'
                     )
 
-                pivot_table = pivot_table[[col for col in pivot_table.columns if col not in ["general_count"]] + ["general_count"]]
+                pivot_table = pivot_table[[col for col in pivot_table.columns if col not in [general_count_column]] + [general_count_column]]
 
         # If the values variable is count_mean, we only need the count itself for our tables. 
         elif values_variable == 'count_mean':
