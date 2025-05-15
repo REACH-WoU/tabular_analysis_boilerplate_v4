@@ -261,7 +261,6 @@ for element in disaggregations_perc:
 # remove perc columns from weighted count table
 for element in disaggregations_count_w:
   if isinstance(element[0], pd.DataFrame):
-    print(element[0].columns)
     columns_to_drop = ['perc', 'unweighted_count']
     for column in columns_to_drop:
       if column in element[0].columns:

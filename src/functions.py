@@ -997,6 +997,9 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                     pivot_table = pivot_table.sort_values(
                         by='macroregion'
                     )
+
+                pivot_table = pivot_table[[col for col in pivot_table.columns if col not in ["general_count"]] + ["general_count"]]
+
         # If the values variable is count_mean, we only need the count itself for our tables. 
         elif values_variable == 'count_mean':
             if "category_count_max" in cols_tbl:
