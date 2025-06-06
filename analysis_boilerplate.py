@@ -174,7 +174,7 @@ filter_daf = pd.read_excel(excel_path_daf, sheet_name="filter")
 if filter_daf.shape[0]>0:
   # just in case there are unnecessary spaces anywhere
   for col in filter_daf.columns:
-    if col != 'ID':
+    if col != 'ID' and filter_daf[col].dtype == 'object':
       filter_daf[col] = filter_daf[col].str.replace(' ', '')
       filter_daf[col] = filter_daf[col].str.replace("'", '')
       
