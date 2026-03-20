@@ -356,7 +356,7 @@ def weighted_mean(df, weight_column, numeric_column, add_moe=True):
         weighted_median_result = sorted_df.iloc[min_of_two][numeric_column]
     
     # calculating MoE of the median for datasets with length > 1
-    if add_moe and len(df[numeric_column].to_numpy()) > 1:
+    if add_moe and len(df[numeric_column].to_numpy()) > 2:
         # Estimate density at the median using weighted KDE
         kde = gaussian_kde(df[numeric_column], weights=df[weight_column])
         density_x = np.linspace(min(df[numeric_column],), max(df[numeric_column],), 1000)
@@ -912,6 +912,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 values_variable = 'category_count'
             pivot_columns = []
         # check that columns are present
+        #print(values_variable)
         pivot_columns = [col for col in pivot_column_names if col in cols_tbl]
         # else:
         #     pivot_columns = []
@@ -923,7 +924,7 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             pivot_columns.extend(list(missed_cols))
 
         # case of perc and counts is the same
-        if values_variable in ["perc" ,'category_count']:
+        if (values_variable in ["perc" ,'category_count']):
             if make_pivot_with_strata:
                 # split the frame with and without 'Total' and pivot them.
                 if 'Total' in table['admin_category'].values:
@@ -954,9 +955,9 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                     
                 # get the option values for sorting
                 options_column = table["option"].unique()
-
+                
                 # replace general_count NA values for 'Total' rows woth full_count
-                table[general_count_column] = table[general_count_column].fillna(table['full_count'])
+                #table[general_count_column] = table[general_count_column].fillna(table['full_count'])
 
                 pivot_table = make_pivot(
                     table, pivot_columns + ["admin_category"], ["option"], values_variable)
@@ -965,9 +966,10 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 pivot_table = pivot_table.sort_values(
                     by='admin_category', key=lambda x: x.map(custom_sort_key)).reset_index(drop=True)
 
-                mask = pivot_table['admin_category'] == 'Total'
-                total_value = pivot_table.loc[~mask, general_count_column].sum()
-                pivot_table.loc[mask, general_count_column] = total_value
+                # mask = pivot_table['admin_category'] == 'Total'
+                # total_value = pivot_table.loc[~mask, general_count_column].sum()
+                # #print(total_value)
+                # pivot_table.loc[mask, general_count_column] = total_value
                 
                 # if sorted by total apply a different sorting algorithm
                 if sort_by_total:
@@ -1015,11 +1017,15 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             else:
                 pivot_table = table[cols_to_keep]
             
-            mask = pivot_table['admin_category'] == 'Total'
-            total_value = pivot_table.loc[~mask, category_count_column].sum()
-            pivot_table.loc[mask, category_count_column] = total_value
+            # mask = pivot_table['admin_category'] == 'Total'
+            # total_value = pivot_table.loc[~mask, category_count_column].sum()
+            # pivot_table.loc[mask, category_count_column] = total_value
         
         elif (values_variable == 'mean' or any(item.startswith("mean") for item in values_variable)):
+            if "general_count_max" in cols_tbl:
+                general_count_column = "general_count_max"
+            else:
+                general_count_column = "general_count"
             # and not any(item.startswith("category_count") for item in values_variable)
             if make_pivot_with_strata:
                 # add numeric columns as a single one by melting the frame
@@ -1036,7 +1042,14 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
                 cols_to_drop = ['ID','variable','admin','disaggregations_1','total_count_perc', 'full_count']
                 cols_to_keep = [i for i in cols_tbl if i not in cols_to_drop]
                 pivot_table = table[cols_to_keep]
+            pivot_table = pivot_table[[col for col in pivot_table.columns if col not in [general_count_column]] + [general_count_column]]
+
         else:
+            
+            if "general_count_max" in cols_tbl:
+                general_count_column = "general_count_max"
+            else:
+                general_count_column = "general_count"
             # check if we're dealing with a count table
             category_count_columns = [x for x in cols_tbl if x.startswith('category_count_')]
             # and keep only count columns
@@ -1046,7 +1059,13 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             [x for x in cols_tbl if x.startswith(('perc_','median_','mean_','max_','min_'))])
             +[x for x in cols_tbl if x.endswith('_count_max')])
             # and keep only what we need. No need to pivot if the tables were joined
+            
             pivot_table = table[cols_to_keep]
+            # mask = pivot_table['admin_category'] == 'Total'
+            # total_value = pivot_table.loc[~mask, general_count_column].sum()
+            # #print(total_value)
+            # pivot_table.loc[mask, general_count_column] = total_value
+            pivot_table = pivot_table[[col for col in pivot_table.columns if col not in [general_count_column]] + [general_count_column]]
             
         if 'macroregion' in pivot_table.columns:
             pivot_table = pivot_table.sort_values(by='macroregion')    
@@ -1078,8 +1097,8 @@ def construct_result_table(tables_list, file_name, make_pivot_with_strata=False,
             for col_num, (column_name, value) in enumerate(row.items()):
                 if column_name not in ['disaggregations_category_1', 'disaggregations_category_2', 'admin_category', 'option', 
                             'strata_name', 'raion', 'oblast', 'macroregion', 'disaggregations_category_3'
-                            'count', 'full_count','weighted_count','unweighted_count','category_count', 'category_count_max', 'general_count', 'general_count_max'] and not column_name.startswith("mean")\
-                            and not column_name.startswith("moe_") and not column_name.startswith("median") and not column_name.startswith("max") and not column_name.startswith("min"):
+                            'count', 'full_count','weighted_count','unweighted_count','category_count', 'category_count_max', 'general_count', 'general_count_max'] and not str(column_name).startswith("mean")\
+                            and not str(column_name).startswith("moe_") and not str(column_name).startswith("median") and not str(column_name).startswith("max") and not str(column_name).startswith("min"):
                     if pd.isna(value):
                         data_sheet.write(row_num + 2 +cell_id, col_num, None)
                     elif values_variable not in ["mean", "count_mean", "value", "category_count"]:
@@ -1511,19 +1530,43 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                 summary_stats_full['weighted_count'] = summary_stats_full['weighted_count'].round()
                 summary_stats_full['general_count'] = summary_stats_full['general_count'].round()
 
-                # If the user needs the totals (non-disaggregated). They are added here
+                # If the user needs the totals (now it is disaggregated). They are added here
                 if 'add_total' in calc:
-                    summary_stats_total = data_temp.groupby(daf_final_freq['variable'][i])[
+                    groupby_columns_total = disaggregations+[daf_final_freq['variable'][i]]+['overall']
+                    summary_stats_total = data_temp.groupby(groupby_columns_total)[
                         weight_column].agg(['sum','count'])  
                     summary_stats_total.rename(
                         columns={'count': 'unweighted_count'}, inplace=True)
                     summary_stats_total.reset_index(inplace=True)
+                    
+                    # get the same stats but for the full subsample (not calculating option samples)
+                    groupby_columns_ov_tot = disaggregations + ['overall']
+                    
+
+                    summary_stats_tot_var_om = data_temp_backup.groupby(
+                        groupby_columns_ov_tot)[weight_column].agg(['sum', 'count'])
+
+                    summary_stats_total.reset_index(inplace=True)
+                    summary_stats_tot_var_om.reset_index(inplace=True)
+                    
+                    # rename them
+                    # summary_stats_total.rename(
+                    #     columns={'sum': 'weighted_count'}, inplace=True)
+                    summary_stats_tot_var_om.rename(
+                        columns={'sum': 'general_count'}, inplace=True)
+                    summary_stats_tot_var_om.rename(
+                        columns={'count': 'sample_count'}, inplace=True)
+                    
+                    summary_stats_total = summary_stats_total.merge(
+                        summary_stats_tot_var_om, on=groupby_columns_ov_tot, how='left')
+                    
                     # sometimes weights are wonky. so we're accounting for that
                     summary_stats_total['perc'] = round(
                         summary_stats_total['sum']/data_temp_backup[weight_column].sum(), 4)
                     summary_stats_total['weighted_count'] = summary_stats_total['sum'].copy().round()
                     # add count (n of non-na rows)
-                    summary_stats_total['general_count'] = data_temp_backup.shape[0]
+                    summary_stats_total['general_count'] = summary_stats_total['weighted_count']#.sum()
+                    summary_stats_total['general_count_uw'] = summary_stats_total['sample_count']#data_temp_backup.shape[0]
                     # drom the sum column
                     summary_stats_total.drop(columns=['sum'], inplace=True)
 
@@ -1536,6 +1579,16 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     summary_stats_total['admin'] = 'Total'
                     summary_stats_total['admin_category'] = 'Total'
                     summary_stats_total['variable'] = daf_final_freq['variable'][i]
+                    
+                    if disaggregations != []:
+                        for j, column_name in enumerate(disaggregations):
+                            new_column_names[column_name] = f'disaggregations_category_{j+1}'
+
+                    summary_stats_total.rename(
+                        columns=new_column_names, inplace=True)
+                    if disaggregations != []:
+                        for j, column_name in enumerate(disaggregations):
+                            summary_stats_total[f'disaggregations_{j+1}'] = disaggregations[j]
 
                     # Replace the option names with their labels
                     if tool_survey['name'].isin([daf_final_freq.loc[i, 'variable']]).any():
@@ -1546,16 +1599,34 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                                                         tool_survey=tool_survey,
                                                         tool_choices=tool_choices,
                                                         na_include=na_includer)
-                        
-                    # add the variable labels and the original names
-                    summary_stats_total['variable_orig'] = summary_stats_total['variable']
-                    summary_stats_total['variable'] = daf_final_freq['variable_label'][i]
-                    
-                    # add the disaggregations labels and the original names
+                    # disaggregations category replacer
                     if disaggregations != []:
                         for j, column_name in enumerate(disaggregations):
-                            summary_stats_total[f'disaggregations_{j+1}'] = 'Total'
-                            summary_stats_total[f'disaggregations_category_{j+1}'] = 'Total'
+                            if disaggregations[j] in set(tool_survey['name']):
+                                summary_stats_total = map_names(column_name=f'disaggregations_{j+1}',
+                                                               column_values_name=f'disaggregations_category_{j+1}',
+                                                               summary_table=summary_stats_total,
+                                                               label_col = label_colname,
+                                                               tool_survey=tool_survey,
+                                                               tool_choices=tool_choices)
+                                
+                    summary_stats_total['variable_orig'] = summary_stats_total['variable']
+                    summary_stats_total['variable'] = daf_final_freq['variable_label'][i]
+                    if disaggregations != []:
+                        for j, column_name in enumerate(disaggregations):
+                            disaggregations_labels = daf_final_freq['disaggregations_label'][i]
+                            summary_stats_total[f'disaggregations_{j+1}_orig'] = summary_stats_total[f'disaggregations_{j+1}']
+                            summary_stats_total[f'disaggregations_{j+1}'] = disaggregations_labels
+                            
+                    # # add the variable labels and the original names
+                    # summary_stats_total['variable_orig'] = summary_stats_total['variable']
+                    # summary_stats_total['variable'] = daf_final_freq['variable_label'][i]
+                    
+                    # # add the disaggregations labels and the original names
+                    # if disaggregations != []:
+                    #     for j, column_name in enumerate(disaggregations):
+                    #         summary_stats_total[f'disaggregations_{j+1}'] = 'Total'
+                    #         summary_stats_total[f'disaggregations_category_{j+1}'] = 'Total'
                             
                     # merge together with the base tables
                     summary_stats_full = pd.concat(
@@ -1769,21 +1840,54 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                         
                 # if total is added, then it requires a bit different calculations
                 if 'add_total' in calc:
-                    summary_stats_total = weighted_mean(
-                        data_temp, weight_column=weight_column, numeric_column=daf_final_num['variable'][i],add_moe=add_moe).to_frame().transpose()
+                    if disaggregations != []:
+                        groupby_columns_total = disaggregations
+                    else: 
+                        groupby_columns_total = ['overall']
+                    summary_stats_total = data_temp.groupby(groupby_columns_total).apply(
+                        weighted_mean, weight_column=weight_column, numeric_column=daf_final_num['variable'][i])
+                    
+                    summary_stats_total = summary_stats_total.reset_index()
 
+                    new_column_names = {
+                        daf_final_num['admin'][i]: 'admin_category'}
+
+                    if disaggregations != []:
+                        for j, column_name in enumerate(disaggregations):
+                            new_column_names[column_name] = f'disaggregations_category_{j+1}'
+
+                    summary_stats_total.rename(columns=new_column_names, inplace=True)
+                    
                     # add new columns to match the existing format
                     summary_stats_total['admin'] = 'Total'
                     summary_stats_total['admin_category'] = 'Total'
                     summary_stats_total['variable'] = daf_final_num['variable'][i]
                     
+                    if disaggregations != []:
+                        for j, column_name in enumerate(disaggregations):
+                            summary_stats_total[f'disaggregations_{j+1}'] = disaggregations[j]
+
+                    # disaggregations category replacer
+                    if disaggregations != [] and tool_survey['name'].isin(disaggregations).any():
+                        for j, column_name in enumerate(disaggregations):
+                            if disaggregations[j] in set(tool_survey['name']):
+                                summary_stats_total = map_names(column_name=f'disaggregations_{j+1}',
+                                                          column_values_name=f'disaggregations_category_{j+1}',
+                                                          label_col = label_colname,
+                                                          summary_table=summary_stats,
+                                                          tool_survey=tool_survey,
+                                                          tool_choices=tool_choices)
+                                
                     # add original names and values
                     summary_stats_total['variable_orig'] = summary_stats_total['variable']
                     summary_stats_total['variable'] = daf_final_num['variable_label'][i]
                     if disaggregations != []:
                         for j, column_name in enumerate(disaggregations):
-                            summary_stats_total[f'disaggregations_{j+1}'] = 'Total'
-                            summary_stats_total[f'disaggregations_category_{j+1}'] = 'Total'
+                            disaggregations_labels = daf_final_num['disaggregations_label'][i]
+                            summary_stats_total[f'disaggregations_{j+1}_orig'] = summary_stats_total[f'disaggregations_{j+1}']
+                            summary_stats_total[f'disaggregations_{j+1}'] = disaggregations_labels
+                    if disaggregations == []:
+                        summary_stats_total = summary_stats_total.drop(columns=['overall']) 
                     # merge with the old data
                     summary_stats = pd.concat(
                         [summary_stats, summary_stats_total], ignore_index=True)
