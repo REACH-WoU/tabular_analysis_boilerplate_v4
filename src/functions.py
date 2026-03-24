@@ -1559,14 +1559,19 @@ def disaggregation_creator(daf_final, data, filter_dictionary, tool_choices, too
                     
                     summary_stats_total = summary_stats_total.merge(
                         summary_stats_tot_var_om, on=groupby_columns_ov_tot, how='left')
-                    
+                    pd.set_option('display.max_rows', None)
+                    pd.set_option('display.max_columns', None)
+                    pd.set_option('display.width', None)
+                    pd.set_option('display.max_colwidth', None)
+                    print(summary_stats_total)
                     # sometimes weights are wonky. so we're accounting for that
                     summary_stats_total['perc'] = round(
-                        summary_stats_total['sum']/data_temp_backup[weight_column].sum(), 4)
+                        summary_stats_total['sum']/summary_stats_total['general_count'], 4)
                     summary_stats_total['weighted_count'] = summary_stats_total['sum'].copy().round()
                     # add count (n of non-na rows)
                     summary_stats_total['general_count'] = summary_stats_total['weighted_count']#.sum()
                     summary_stats_total['general_count_uw'] = summary_stats_total['sample_count']#data_temp_backup.shape[0]
+                    print(summary_stats_total)
                     # drom the sum column
                     summary_stats_total.drop(columns=['sum'], inplace=True)
 
